@@ -24,7 +24,7 @@ while True:
 	
 	episodes += 1
 	while step < num_steps and not done: 
-		if episodes % 50 == 0 and not is_rendering:
+		if episodes % 500 == 0 and not is_rendering:
 			env.render()
 			is_rendering = True
 		

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 
 class A2C(nn.Module):
@@ -17,14 +18,14 @@ class A2C(nn.Module):
 			input_shape = [int(np.prod(out.size()))]
 		
 		self._body = nn.Sequential(
-			nn.Linear(*input_shape, 1024),
+			nn.Linear(*input_shape, 2048),
 			nn.ReLU(),
-			nn.Linear(1024, 1024),
+			nn.Linear(2048, 2048),
 			nn.ReLU(),
 		)
 		
-		self._actor = nn.Linear(1024, n_actions)
-		self._critic = nn.Linear(1024, 1)
+		self._actor = nn.Linear(2048, n_actions)
+		self._critic = nn.Linear(2048, 1)
 		
 		self._optimizer = optim.Adam(self.parameters(), lr=lr)
 
@@ -37,13 +38,13 @@ class A2C(nn.Module):
 		return self._body_out	
 	
 	def Policy(self, obs=None):
-		if obs is None:
-			return self._actor(self._body_out)
-		self.forward(obs)
-		return self._actor(self._body_out)
+		if obs is not None:
+			self.forward(obs)
+			
+		return F.softmax(self._actor(self._body_out), -1)
 		
 	def Value(self, obs=None):
-		if obs is None:
-			return self._critic(self._body_out)
-		self.forward(obs)
+		if obs is not None:
+			self.forward(obs)
+
 		return self._critic(self._body_out)
