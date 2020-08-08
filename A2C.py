@@ -16,6 +16,12 @@ class A2C(nn.Module):
 			)
 			out = self._conv(torch.zeros(1, *input_shape))
 			input_shape = [int(np.prod(out.size()))]
+		else:
+			total_inputs = 1
+			for x in input_shape:
+				total_inputs *= x
+			
+			input_shape = [total_inputs]
 		
 		self._body = nn.Sequential(
 			nn.Linear(*input_shape, 2048),
