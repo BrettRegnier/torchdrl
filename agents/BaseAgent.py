@@ -24,7 +24,8 @@ class BaseAgent(object):
         self._memory = UEP(config['memory_size'])
         self._batch_size = config['batch_size']
         self._warm_up = config['warm_up']
-
+        self._max_steps = config['max_steps']
+        
         self._reward_goal = config["reward_goal"]
         self._reward_window = config["reward_window"] # how much to average the score over
         self._episode_score = 0 # TODO deprecate?
@@ -36,9 +37,32 @@ class BaseAgent(object):
         self._visualize = config["visualize"]
         self._visualize_frequency = config["visualize_frequency"] # how many episodes
         self._total_steps = 0
+    
+    def Train(self, num_episodes=-1):
+        self._episode = 1
 
-    def Train(self):
-        raise NotImplementedError("Error must implenet the Train function")
+        done_training = False
+        mean_score = 0
+        while self._episode < num_episodes or not done_training:
+            episode_reward, steps, info = self.PlayEpisode(evaluate=False)
+
+            self._episode_scores.append(episode_reward)
+            mean_score = np.mean(self._episode_scores[-self._reward_window:])
+
+            if episode_reward > self._best_episode_score:
+                self._best_episode_score = episode_reward
+            if mean_score > self._best_mean_episode_score:
+                self._best_mean_episode_score = mean_score
+                if mean_score > self._reward_goal:
+                    done_training = True
+            
+            self._episode += 1
+            win = ""
+            if 'win' in info:
+                win = "win: " + info['win']
+
+            # TODO visualization
+            print(("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f " + win) % (self._episode, steps, episode_reward, mean_score))
 
     def Evaluate(self):
         raise NotImplementedError("Error must implenet the Evaluate function")
@@ -48,6 +72,9 @@ class BaseAgent(object):
 
     def Act(self):
         raise NotImplementedError("Agent must implement the Act function")
+
+    def Learn(self):
+        raise NotImplementedError("Error must implement Learn function")
 
     def OptimizationStep(self, optimizer, network, loss, clipping_norm=None, retain_graph=False):
         optimizer.zero_grad()
@@ -69,4 +96,6 @@ class BaseAgent(object):
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
 
+
+        
 # TODO somehow many it generic enough to have a network buildable based on inputs

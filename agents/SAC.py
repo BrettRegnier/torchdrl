@@ -49,30 +49,6 @@ class SAC(BaseAgent):
 
         self._gamma = gamma
     
-    def Train(self, num_episodes=-1):
-        self._episode = 0
-
-        done_training = False
-        mean_score = 0
-        while self._episode < num_episodes or not done_training:
-            episode_reward, steps, info = self.PlayEpisode(evaluate=False)
-
-            self._episode_scores.append(episode_reward)
-            mean_score = np.mean(self._episode_scores[-self._reward_window:])
-
-            if episode_reward > self._best_episode_score:
-                self._best_episode_score = episode_reward
-            if mean_score > self._best_mean_episode_score:
-                self._best_mean_episode_score = mean_score
-                if mean_score > self._reward_goal:
-                    done_training = True
-
-            self._episode += 1
-
-
-            # TODO visualization
-            print("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f" % (self._episode, steps, episode_reward, mean_score))
-
     def Evaluate(self):
         pass
     
@@ -83,7 +59,7 @@ class SAC(BaseAgent):
         episode_reward = 0
 
         state = self._env.reset()
-        while steps < 1000 and not done:
+        while steps != self._max_steps and not done:
             if self._total_steps < self._warm_up:
                 action = self._env.action_space.sample()
             else:
