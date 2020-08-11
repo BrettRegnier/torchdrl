@@ -3,6 +3,8 @@ import torch.distributions as dis
 import torch.nn.functional as F
 import torch.optim as optim
 
+import numpy as np
+
 from models.BaseNetwork import BaseNetwork
 
 class FullyConnectedNetwork(BaseNetwork):
@@ -20,7 +22,7 @@ class FullyConnectedNetwork(BaseNetwork):
         num_hidden_layers = len(hidden_layers)
 
         net = []
-        net.append(nn.Linear(*input_shape, hidden_layers[0]))
+        net.append(nn.Linear(np.prod(input_shape), hidden_layers[0]))
         if len(activations) > 0 and activations[0] is not None:
             net.append(self.GetActivation(activations[0]))
 

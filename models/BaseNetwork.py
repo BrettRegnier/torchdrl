@@ -24,6 +24,8 @@ class BaseNetwork(nn.Module):
         ac = activation.lower()
         if ac == "relu":
             return nn.ReLU()
+        elif ac == "softmax":
+            return nn.Softmax(dim=1)
         elif ac == "sigmoid":
             return nn.Sigmoid()
         elif ac == "tanh":

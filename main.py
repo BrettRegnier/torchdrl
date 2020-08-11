@@ -5,7 +5,7 @@ import numpy as np
 # from Agent import AgentA2C
 from SAC import AgentSAC
 from SACD import AgentSACD
-from Memory import UniformExperienceReplay
+from data_structures.UniformExperienceReplay import UniformExperienceReplay
 
 
 lr = 1e-3
@@ -50,7 +50,7 @@ for episode in range(max_episodes):
 	total_steps += steps
 	print('Episode: %d, reward: %.3f, steps: %d, total steps: %d' % (episode, episode_reward, steps, total_steps))
 
-	if episode_reward >= 200:
+	if episode_reward >= 300:
 		exit()
 
 

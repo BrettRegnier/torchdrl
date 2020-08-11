@@ -18,19 +18,19 @@ class SACD(SAC):
         BaseAgent.__init__(self, config)
         assert self._action_type == "DISCRETE", "Action types must be discrete. Use SAC for continuous actions"
         
-        self._critic1 = FCN(self._input_shape, self._n_actions).to(self._device)
-        self._critic2 = FCN(self._input_shape, self._n_actions).to(self._device)
+        self._critic1 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
+        self._critic2 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
 
         self._critic_optimizer1 = optim.Adam(self._critic1.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
         self._critic_optimizer2 = optim.Adam(self._critic2.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
 
-        self._critic_target1 = FCN(self._input_shape, self._n_actions).to(self._device)
-        self._critic_target2 = FCN(self._input_shape, self._n_actions).to(self._device)
+        self._critic_target1 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
+        self._critic_target2 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
 
-        self._critic_target1.CopyModel(self._critic1)
-        self._critic_target2.CopyModel(self._critic2)
+        self.CopyNetwork(self._critic1, self._critic_target1)
+        self.CopyNetwork(self._critic2, self._critic_target2)
         
-        self._actor = FCN(self._input_shape, self._n_actions, nn.Softmax(dim=1)).to(self._device)
+        self._actor = FCN(self._input_shape, self._n_actions, self._hyperparameters['actor_hidden_layers'], self._hyperparameters['actor_activations'], self._hyperparameters['actor_final_activation']).to(self._device)
         self._actor_optimizer = optim.Adam(self._actor.parameters(), lr=self._hyperparameters['actor_lr'], eps=1e-4)
 
         # self._target_entropy = -torch.prod(torch.tensor(self._env.action_space.shape).to(self._device)).item()
@@ -67,11 +67,13 @@ class SACD(SAC):
             next_q_values2 = self._critic_target2(next_states_t) 
 
             min_q_next_value = action_probs * (torch.min(next_q_values1, next_q_values2) - self._alpha * log_action_probs)
-            min_q_next_value = min_q_next_value.mean(dim=1).unsqueeze(-1)
-            next_q_value = rewards_t + (1.0 - dones_t) * self._gamma * (min_q_next_value)
+            min_q_next_value = min_q_next_value.mean(dim=1)
+            
+        next_q_value = rewards_t + (1.0 - dones_t) * self._gamma * (min_q_next_value)
 
-        q_value1 = self._critic1(states_t).gather(1, actions_t.long())
-        q_value2 = self._critic2(states_t).gather(1, actions_t.long())
+        actions_t_sq = actions_t.unsqueeze(-1)
+        q_value1 = self._critic1(states_t).gather(1, actions_t_sq).squeeze(-1)
+        q_value2 = self._critic2(states_t).gather(1, actions_t_sq).squeeze(-1)
 
         critic_loss1 = F.mse_loss(q_value1, next_q_value)
         critic_loss2 = F.mse_loss(q_value2, next_q_value)

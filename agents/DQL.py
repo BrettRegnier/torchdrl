@@ -86,7 +86,7 @@ class DQL(BaseAgent):
         next_action_qs = next_q_values[batch_indices, next_actions]
         next_action_qs[dones_t] = 0.0
 
-        q_target = rewards_t + self._gamma * next_action_qs
+        q_target = rewards_t #+ self._gamma * next_action_qs
 
         td = q_target - q_values
 
@@ -98,10 +98,7 @@ class DQL(BaseAgent):
 
         # update target
         if self._total_steps % self._target_update == 0:
-            self.TargetUpdate(self._net, self._target_net)
-    
-    def TargetUpdate(self, net, target_net):
-        target_net.load_state_dict(net.state_dict())
+            self.CopyNetwork(self._net, self._target_net)
 
     # currently broken
     # https://towardsdatascience.com/deep-q-learning-for-the-cartpole-44d761085c2f

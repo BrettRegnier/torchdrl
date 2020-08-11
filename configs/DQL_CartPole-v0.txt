@@ -1,0 +1,34 @@
+{
+    "env": "CartPole-v0",
+    "env_kwargs": {},
+    "device": "cuda",
+    "reward_goal": 150,
+    "reward_window": 100,
+    "memory_size": 100000,
+    "batch_size": 64,
+    "warm_up": 0,
+    "n_step_update": 1,
+    "n_updates_per_learn": 1,
+    "max_steps": -1,
+    "visualize": false,
+    "visualize_frequency": 10,
+    "hyperparameters": {
+        "hidden_layers": [
+            1024,
+            512
+        ],
+        "activations": [
+            "relu",
+            "relu"
+        ],
+        "final_activation": null,
+        "lr": 0.001,
+        "epsilon": 0.1,
+        "epsilon_decay": 5e-05,
+        "epsilon_min": 0.001,
+        "target_update": 10,
+        "tau": 0.1,
+        "gamma": 0.99,
+        "soft_update": true
+    }
+}

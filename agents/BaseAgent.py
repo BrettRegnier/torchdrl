@@ -1,7 +1,6 @@
-import numpy as np
 import torch
+import numpy as np
 
-# TODO maybe remove?
 from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
 
 class BaseAgent(object):
@@ -59,7 +58,7 @@ class BaseAgent(object):
             self._episode += 1
             win = ""
             if 'win' in info:
-                win = "win: " + info['win']
+                win = "win: " + str(info['win'])
 
             # TODO visualization
             print(("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f " + win) % (self._episode, steps, episode_reward, mean_score))
@@ -96,6 +95,7 @@ class BaseAgent(object):
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
 
-
+    def CopyNetwork(self, net, target_net):
+        target_net.load_state_dict(net.state_dict())
         
 # TODO somehow many it generic enough to have a network buildable based on inputs

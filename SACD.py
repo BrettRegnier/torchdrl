@@ -162,7 +162,7 @@ class AgentSACD:
     # TODO might need to convert to torch tensors here
     def Value(self, states, actions):
         state_value1, state_value2 = self._online_critic(states)
-        return state_value1.gather(1, actions.long()), state_value2.gather(1, actions.long())
+        return state_value1.gather(1, actions.unsqueeze(-1)), state_value2.gather(1, actions.unsqueeze(-1))
     
     # TODO multistep gamma... gamma ** multistep
     @torch.no_grad()
@@ -180,7 +180,7 @@ class AgentSACD:
         states, actions, rewards, next_states, dones = batch
 
         states_t = torch.tensor(states, dtype=torch.float32).to(self._device)
-        actions_t = torch.tensor(actions, dtype=torch.float32).to(self._device)
+        actions_t = torch.tensor(actions, dtype=torch.int64).to(self._device)
         rewards_t = torch.tensor(rewards, dtype=torch.float32).to(self._device)
         next_states_t = torch.tensor(next_states, dtype=torch.float32).to(self._device)
         dones_t = torch.tensor(dones, dtype=torch.float32).to(self._device)
