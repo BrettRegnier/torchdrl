@@ -7,9 +7,7 @@ from Flatten import Flatten
 
 class ConvolutionNetwork(BaseNetwork):
     def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, relus:list, pools:list, flatten: bool):
-        super(ConvolutionNetwork, self).__init__()
-        if type(input_shape) is not tuple:
-            raise AssertionError("Input shape must be of type tuple")
+        super(ConvolutionNetwork, self).__init__(input_shape)
 
         channels = input_shape[0]
         if channels <= 0:
@@ -23,10 +21,10 @@ class ConvolutionNetwork(BaseNetwork):
             msg = "filters: %d, kernels: %d, stides: %d, paddings: %d - Must all be equal size" % (num_filters, len(kernels), len(strides), len(paddings))
             raise AssertionError(msg)
 
-        self.AssertParameter(filters, "filters")
-        self.AssertParameter(kernels, "kernels")
-        self.AssertParameter(strides, "strides")
-        self.AssertParameter(paddings, "paddings", min_value=0)
+        self.AssertParameter(filters, "filters", int)
+        self.AssertParameter(kernels, "kernels", int)
+        self.AssertParameter(strides, "strides", int)
+        self.AssertParameter(paddings, "paddings", int min_value=0)
 
         convos = []
         convos.append(nn.Conv2d(channels, filters[0], kernels[0], strides[0], padding=paddings[0]))

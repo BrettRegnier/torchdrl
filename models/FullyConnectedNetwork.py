@@ -1,5 +1,3 @@
-# TODO make it generic
-
 import torch.nn as nn
 import torch.distributions as dis
 import torch.nn.functional as F
@@ -8,25 +6,36 @@ import torch.optim as optim
 from models.BaseNetwork import BaseNetwork
 
 class FullyConnectedNetwork(BaseNetwork):
-    def __init__(self, input_shape, n_actions, last_layer_activation=None, convo=False):
-        super(FullyConnectedNetwork, self).__init__()		
+    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, final_activation: str):
+        super(FullyConnectedNetwork, self).__init__(input_shape)
 
-        self._body = nn.Sequential(
-            nn.Linear(*input_shape, 64),
-            # nn.ReLU(),
-            nn.Linear(64, 64),
-            # nn.ReLU()
-        )
+        if type(n_actions) is not int:
+            raise AssertionError("Input shape must be of type int")
+        if type(final_activation) is not str and final_activation is not None:
+            raise AssertionError("Last activation must be of type str")
 
-        head = [nn.Linear(64, n_actions)]
-        if last_layer_activation is not None:
-            head.append(last_layer_activation)
+        self.AssertParameter(hidden_layers, "hidden_layers", int)
+        self.AssertParameter(activations, "activations", str, -1)
 
-        self._head = nn.Sequential(*head)
-                
+        num_hidden_layers = len(hidden_layers)
 
+        net = []
+        net.append(nn.Linear(*input_shape, hidden_layers[0]))
+        if len(activations) > 0 and activations[0] is not None:
+            net.append(self.GetActivation(activations[0]))
+
+        i = 0
+        for i in range(1, num_hidden_layers):
+            net.append(nn.Linear(hidden_layers[i-1], hidden_layers[i]))
+            if i < len(activations):
+                if activations[i] is not None:
+                    net.append(self.GetActivation(activations[i]))
+
+        net.append(nn.Linear(hidden_layers[i], n_actions))
+        if final_activation is not None:
+            net.append(self.GetActivation(final_activation))
+
+        self._net = nn.Sequential(*net)
 
     def forward(self, state):
-        x = self._body(state)
-        x = self._head(x)
-        return x
+        return self._net(state)

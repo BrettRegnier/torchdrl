@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 # TODO maybe remove?
-from data_structures.UniformExperienceReplay import UniformExperienceReplay as UEP
+from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
 
 class BaseAgent(object):
     def __init__(self, config):
@@ -21,7 +21,7 @@ class BaseAgent(object):
         self._input_shape = self._env.observation_space.shape
 
         # TODO generalize how to choose memory.
-        self._memory = UEP(config['memory_size'])
+        self._memory = UER(config['memory_size'])
         self._batch_size = config['batch_size']
         self._warm_up = config['warm_up']
         self._max_steps = config['max_steps']
@@ -43,7 +43,7 @@ class BaseAgent(object):
 
         done_training = False
         mean_score = 0
-        while self._episode < num_episodes or not done_training:
+        while self._episode != num_episodes and not done_training:
             episode_reward, steps, info = self.PlayEpisode(evaluate=False)
 
             self._episode_scores.append(episode_reward)
@@ -86,13 +86,13 @@ class BaseAgent(object):
         optimizer.step()
 
     def SampleMemoryT(self, batch_size):
-        states, actions, next_states, rewards, dones = self._memory.Sample(batch_size)
+        states_np, actions_np, next_states_np, rewards_np, dones_np = self._memory.Sample(batch_size)
         
-        states_t = torch.tensor(np.array(states), dtype=torch.float32).to(self._device)
-        actions_t = torch.tensor(np.array(actions), dtype=torch.float32).to(self._device)
-        next_states_t = torch.tensor(np.array(next_states), dtype=torch.float32).to(self._device)
-        rewards_t = torch.tensor(np.array(rewards), dtype=torch.float32).to(self._device)
-        dones_t = torch.tensor(np.array(dones), dtype=torch.int64).to(self._device)
+        states_t = torch.tensor(states_np, dtype=torch.float32).to(self._device)
+        actions_t = torch.tensor(actions_np, dtype=torch.int64).to(self._device)
+        next_states_t = torch.tensor(next_states_np, dtype=torch.float32).to(self._device)
+        rewards_t = torch.tensor(rewards_np, dtype=torch.float32).to(self._device)
+        dones_t = torch.tensor(dones_np, dtype=torch.int64).to(self._device)
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
 
