@@ -2,12 +2,14 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from BaseNetwork import BaseNetwork
-from Flatten import Flatten
+from models.BaseNetwork import BaseNetwork
+from models.Flatten import Flatten
 
 class ConvolutionNetwork(BaseNetwork):
-    def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, relus:list, pools:list, flatten: bool):
+    def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, activations:list, pools:list, flatten: bool):
         super(ConvolutionNetwork, self).__init__(input_shape)
+
+        self._input_shape = input_shape
 
         channels = input_shape[0]
         if channels <= 0:
@@ -24,28 +26,30 @@ class ConvolutionNetwork(BaseNetwork):
         self.AssertParameter(filters, "filters", int)
         self.AssertParameter(kernels, "kernels", int)
         self.AssertParameter(strides, "strides", int)
-        self.AssertParameter(paddings, "paddings", int min_value=0)
+        self.AssertParameter(activations, "activations", str, -1)
+        self.AssertParameter(paddings, "paddings", int, min_value=0)
 
         convos = []
         convos.append(nn.Conv2d(channels, filters[0], kernels[0], strides[0], padding=paddings[0]))
-        if len(relus) > 0 and relus[0] is not None:
-            convos.append(nn.ReLU())
+        if len(activations) > 0 and activations[0] is not None:
+            convos.append(self.GetActivation(activations[0]))
         if len(pools) > 0 and pools[0] is not None:
             convos.append(nn.MaxPool2d(pools[0]))
         
         for i in range(1, len(filters)):
             convos.append(nn.Conv2d(filters[i-1], filters[i], kernels[i], strides[i], padding=paddings[i]))
-            if len(relus) > i and relus[i] is not None:
-                convos.append(nn.ReLU())
+            if len(activations) > i and activations[i] is not None:
+                convos.append(self.GetActivation(activations[i]))
             if len(pools) > i and pools[i] is not None:
                 convos.append(nn.MaxPool2d(pools[i]))
 
         if flatten:
             convos.append(Flatten())
         self._net = nn.Sequential(*convos)
+        self._net_list = convos
 
-        out = self.forward(torch.zeros(1, *input_shape))
-        self._out_features = [int(np.prod(out.size()))]
+        out = self.forward(torch.zeros(1, *self._input_shape))
+        self._output_size = [int(np.prod(out.size()))]
 
     def forward(self, state):
         return self._net(state)

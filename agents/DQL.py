@@ -6,6 +6,7 @@ import random
 from agents.BaseAgent import BaseAgent
 
 from models.FullyConnectedNetwork import FullyConnectedNetwork as FCN 
+from models.ConvolutionNetwork import ConvolutionNetwork as CN
 from data_structures.UniformExperienceReplay import NewUEP as NUER
 from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
 
@@ -23,8 +24,14 @@ class DQL(BaseAgent):
         self._soft_update = self._hyperparameters['soft_update']
         self._tau = self._hyperparameters['tau'] 
         
-        self._net = FCN(self._input_shape, self._n_actions, self._hyperparameters["hidden_layers"], self._hyperparameters['activations'], self._hyperparameters['final_activation']).to(self._device)
-        self._target_net = FCN(self._input_shape, self._n_actions, self._hyperparameters["hidden_layers"], self._hyperparameters['activations'], self._hyperparameters['final_activation']).to(self._device)
+        convo = None
+        if self._hyperparameters['convo'] is not None:
+            cnc = self._hyperparameters['convo']
+            convo = CN(self._input_shape, cnc['filters'], cnc['kernels'], cnc['strides'], cnc['paddings'], cnc['activations'], cnc['pools'], cnc['flatten'])
+
+        fcc = self._hyperparameters['fc']
+        self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], convo).to(self._device)
+        self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], convo).to(self._device)
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
     
     def PlayEpisode(self, evaluate=False):
@@ -32,6 +39,8 @@ class DQL(BaseAgent):
         steps = 0
         episode_reward = 0
         
+        if self._enable_seed:
+            self._env.seed(self._seed)
         state = self._env.reset()
         while steps != self._max_steps and not done:
             action = self.Act(state)
@@ -44,7 +53,7 @@ class DQL(BaseAgent):
                 self.Learn()
 
                 # update epsilon
-                self._epsilon = max(self._epsilon - self._epsilon_decay, self._epsilon_min)
+                self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
             
             episode_reward += reward
             state = next_state
@@ -86,7 +95,7 @@ class DQL(BaseAgent):
         next_action_qs = next_q_values[batch_indices, next_actions]
         next_action_qs[dones_t] = 0.0
 
-        q_target = rewards_t #+ self._gamma * next_action_qs
+        q_target = rewards_t + self._gamma * next_action_qs
 
         td = q_target - q_values
 

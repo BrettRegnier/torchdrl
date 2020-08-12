@@ -12,16 +12,21 @@
     "max_steps": -1,
     "visualize": false,
     "visualize_frequency": 10,
+    "enable_seed": true,
+    "seed": 0,
     "hyperparameters": {
-        "hidden_layers": [
-            1024,
-            512
-        ],
-        "activations": [
-            "relu",
-            "relu"
-        ],
-        "final_activation": null,
+        "convo": null,
+        "fc": {
+            "hidden_layers": [
+                1024,
+                512
+            ],
+            "activations": [
+                "relu",
+                "relu"
+            ],
+            "final_activation": null
+        },
         "lr": 0.001,
         "epsilon": 0.1,
         "epsilon_decay": 5e-05,

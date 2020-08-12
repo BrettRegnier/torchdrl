@@ -11,9 +11,11 @@ class BaseAgent(object):
         self._config = config
         self._hyperparameters = config['hyperparameters']
 
-        #TODO setup seeding
         self._env = config['env']
         self._device = config['device']
+        self._seed = config['seed']
+        self._enable_seed = config['enable_seed']
+
         # TODO setup environment title
         self._action_type = "DISCRETE" if self._env.action_space.dtype == np.int64 else "CONTINUOUS"
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]

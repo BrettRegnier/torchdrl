@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 class BaseNetwork(nn.Module):
     def __init__(self, input_shape:tuple):
@@ -44,3 +45,6 @@ class BaseNetwork(nn.Module):
 
     def CopyModel(self, model):
         self.load_state_dict(model.state_dict())
+
+    def NetList(self):
+        return self._net_list

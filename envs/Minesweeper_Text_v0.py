@@ -13,8 +13,6 @@ NEIGHBOURS = 1
 NUM_MINES = 2
 IS_MINE = 3
 
-# TODO change soft variable to seed, its the same thing.
-
 
 class Minesweeper_Text_v0(gym.Env):
     def __init__(self, **kwargs):
@@ -24,9 +22,9 @@ class Minesweeper_Text_v0(gym.Env):
         if "difficulty" in kwargs.keys():
             difficulty = kwargs["difficulty"]
             
-        self._flat = False
-        if "flat" in kwargs.keys():
-            self._flat = kwargs["flat"]
+        self._mode = "one-hot"
+        if "mode" in kwargs.keys():
+            self._flat = kwargs["mode"]
 
         self._rows = int(6 * difficulty + 2)
         self._columns = int(11 * difficulty - difficulty**2)
@@ -44,18 +42,16 @@ class Minesweeper_Text_v0(gym.Env):
 
         self.action_space = spaces.Discrete(self._rows * self._columns)
         self.observation_space = spaces.Box(
-            low=-1, high=9, shape=(1, self._rows, self._columns), dtype=np.float32)
+            low=-1, high=9, shape=(10, self._rows, self._columns), dtype=np.float32)
         # self.observation_space = spaces.Box(low=0, high=10, shape=(
         #     1, self._rows * self._columns), dtype=np.int32)
-        self._seed = 0
 
     def step(self, action):
         tile = self._board[action]
         self._done = False
         self._win = False
         state = None
-        # reward = 0.3
-        reward = 0
+        reward = -0.3
 
         # check if mine or out of steps
         if tile[IS_MINE] == True:
@@ -65,8 +61,7 @@ class Minesweeper_Text_v0(gym.Env):
 
         # check if unrevealed
         if tile[STATE] == UNREVEALED_TILE and not self._done:
-            # reward = 0.7
-            reward = 1.0
+            reward = 0.9
 
             # reveal all neighbouring tiles that can be
             queue = [tile]
@@ -99,57 +94,50 @@ class Minesweeper_Text_v0(gym.Env):
         # print(state, reward, done, win)
         return state, reward, self._done, {'win':self._win}
 
-    def reset(self, soft=False, load=False):
+    def reset(self):
         self._unrevealed_remaining = (self._rows * self._columns) - self._mines
         self._done = False
         self._win = False
         self._steps = 0
 
-        if soft and self._board is not None:
-            for tile in self._board:
-                tile[STATE] = UNREVEALED_TILE
-        else:
-            self._board = []
+        self._board = []
 
-            mine_indices = []
-            to_make_mine = self._mines
-            if load == False: # for when I want to load in a seed
-                self._seed = random.random()
-            random.seed(self._seed)
-            choices = [c for c in range(self._rows * self._columns)]
-            while to_make_mine > 0:
-                idx = random.choice(choices)
-                mine_indices.append(idx)
-                choices.remove(idx)
-                to_make_mine -= 1
+        mine_indices = []
+        to_make_mine = self._mines
+        choices = [c for c in range(self._rows * self._columns)]
+        while to_make_mine > 0:
+            idx = random.choice(choices)
+            mine_indices.append(idx)
+            choices.remove(idx)
+            to_make_mine -= 1
 
-            for row in range(self._rows):
-                for column in range(self._columns):
-                    neighbours = []
-                    neighbouring_mines = 0
-                    for i in range(row-1, row+2):
-                        if i < 0 or i >= self._rows:
-                            neighbours.append(-1)
-                            neighbours.append(-1)
+        for row in range(self._rows):
+            for column in range(self._columns):
+                neighbours = []
+                neighbouring_mines = 0
+                for i in range(row-1, row+2):
+                    if i < 0 or i >= self._rows:
+                        neighbours.append(-1)
+                        neighbours.append(-1)
+                        neighbours.append(-1)
+                        continue
+                    for j in range(column-1, column+2):
+                        if i == row and j == column:
+                            continue
+                        if j < 0 or j >= self._columns:
                             neighbours.append(-1)
                             continue
-                        for j in range(column-1, column+2):
-                            if i == row and j == column:
-                                continue
-                            if j < 0 or j >= self._columns:
-                                neighbours.append(-1)
-                                continue
 
-                            n_idx = i * self._columns + j
-                            neighbours.append(n_idx)
-                            if n_idx in mine_indices:
-                                neighbouring_mines += 1
+                        n_idx = i * self._columns + j
+                        neighbours.append(n_idx)
+                        if n_idx in mine_indices:
+                            neighbouring_mines += 1
 
-                    # tiles
-                    is_mine = (row * self._columns + column) in mine_indices
-                    state = UNREVEALED_TILE  # unrevealed
-                    self._board.append(
-                        [state, neighbours, neighbouring_mines, is_mine])
+                # tiles
+                is_mine = (row * self._columns + column) in mine_indices
+                state = UNREVEALED_TILE  # unrevealed
+                self._board.append(
+                    [state, neighbours, neighbouring_mines, is_mine])
 
         # create state
         return self.State()
@@ -163,17 +151,44 @@ class Minesweeper_Text_v0(gym.Env):
 
         print("")
 
+    def seed(self, seed):
+        self._seed = seed        
+        random.seed(self._seed)
+
     def State(self):
         states = []
-        neighbours = []
-        for t in self._board:
-            states.append(t[STATE])
-        state_np = np.array(states, dtype=np.float32)
-        
-        # convolution
-        if not self._flat:
-            state_np = np.reshape(state_np, (-1, self._columns))
-            state_np = np.expand_dims(state_np, axis=0)
+        state_np = []
+        if self._mode == "one-hot":
+            for row in range(self._rows):
+                states.append([])
+                for column in range(self._columns):
+                    encoding = [0] * 10
+
+                    tile = self._board[row * self._columns + column]
+                    state = tile[STATE]
+
+                    if state == UNREVEALED_TILE: # unrevealed
+                        encoding[9] = 1
+                    elif state != MINE_TILE: # is not a mine
+                        encoding[state] = 1
+
+                    states[row].append(encoding)
+
+            state_np = np.array(states, dtype=np.float32)
+            state_np = np.moveaxis(state_np, -1, 0)
+            
+        elif self._mode == "simplified":
+            pass
+        else:
+            neighbours = []
+            for t in self._board:
+                states.append(t[STATE])
+            state_np = np.array(states, dtype=np.float32)
+            
+            # convolution
+            if not self._flat:
+                state_np = np.reshape(state_np, (-1, self._columns))
+                state_np = np.expand_dims(state_np, axis=0)
 
         return state_np
 
