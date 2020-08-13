@@ -2,8 +2,8 @@ from envs import RegisteredEnvs
 import gym
 import torch
 from data_structures.UniformExperienceReplay import UniformExperienceReplay
+from data_structures import Config
 from agents.DQL import DQL
-import Config
 
 # device = torch.device('cuda') # move into config.
 # env = gym.make("CartPole-v0") # move into config
@@ -23,6 +23,9 @@ config = {
     "max_steps": -1,
     "visualize": False,
     "visualize_frequency": 10,
+    "log": True,
+    "show_log": True,
+    "show_log_frequency": 1,
     "enable_seed": False,
     "seed": 0,
     "hyperparameters": {
@@ -62,10 +65,9 @@ config = {
 
 # TODO add visualization
 
-# Config.Save("configs/DQL_Minesweeper-v0.txt", config)
+# Config.Save("configs/DQL_Minesweeper-v0.txt", config); exit()
 
-# config = Config.Load("configs/DQL_Minesweeper-v0.txt")
-# config = Config.Load("configs/DQL_CartPole-v0.txt")
+config = Config.Load("configs/DQL_CartPole-v1.txt")
 
 # TODO make this modular?
 config['env'] = RegisteredEnvs.BuildEnv(config['env'], config['env_kwargs'])

@@ -9,6 +9,7 @@ from models.FullyConnectedNetwork import FullyConnectedNetwork as FCN
 from models.ConvolutionNetwork import ConvolutionNetwork as CN
 from data_structures.UniformExperienceReplay import NewUEP as NUER
 from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
+from representations.Plotter import Plotter
 
 
 class DQL(BaseAgent):
@@ -33,14 +34,17 @@ class DQL(BaseAgent):
         self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], convo).to(self._device)
         self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], convo).to(self._device)
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
+
+        if config['log']:
+            self._log.AddFigure("Loss", "Mean loss", "red")
+            self._losses = []
+
     
     def PlayEpisode(self, evaluate=False):
         done = False
         steps = 0
         episode_reward = 0
         
-        if self._enable_seed:
-            self._env.seed(self._seed)
         state = self._env.reset()
         while steps != self._max_steps and not done:
             action = self.Act(state)
@@ -52,6 +56,9 @@ class DQL(BaseAgent):
             if len(self._memory) > self._batch_size and self._total_steps > self._warm_up:
                 self.Learn()
 
+                if self._config['log']:
+                    self._losses.append(self._loss)
+
                 # update epsilon
                 self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
             
@@ -60,6 +67,10 @@ class DQL(BaseAgent):
 
             steps += 1
             self._total_steps += 1
+
+        if self._config['log']:
+            self._log.AddPoint("Loss", "Mean loss", (self._episode, np.mean(self._losses)))
+            self._losses = []
             
         return episode_reward, steps, info
 
@@ -104,6 +115,8 @@ class DQL(BaseAgent):
         loss = ((td ** 2.0)).mean()
         loss.backward()
         self._net_optimizer.step()
+
+        self._loss = loss.item()
 
         # update target
         if self._total_steps % self._target_update == 0:

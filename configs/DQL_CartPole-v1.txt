@@ -1,8 +1,8 @@
 {
-    "env": "CartPole-v0",
+    "env": "CartPole-v1",
     "env_kwargs": {},
     "device": "cuda",
-    "reward_goal": 150,
+    "reward_goal": 500,
     "reward_window": 100,
     "memory_size": 100000,
     "batch_size": 64,

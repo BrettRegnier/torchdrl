@@ -1,0 +1,71 @@
+{
+    "env": "Minesweeper_Text_v0",
+    "env_kwargs": {
+        "difficulty": 1,
+        "mode": "one-hot"
+    },
+    "device": "cuda",
+    "reward_goal": 150,
+    "reward_window": 100,
+    "memory_size": 100000,
+    "batch_size": 64,
+    "warm_up": 1000,
+    "n_step_update": 1,
+    "n_updates_per_learn": 1,
+    "max_steps": -1,
+    "visualize": false,
+    "visualize_frequency": 10,
+    "log": true,
+    "show_log": true,
+    "show_log_frequency": 1,
+    "enable_seed": false,
+    "seed": 0,
+    "hyperparameters": {
+        "convo": {
+            "filters": [
+                80,
+                40,
+                40
+            ],
+            "kernels": [
+                5,
+                3,
+                3
+            ],
+            "strides": [
+                1,
+                1,
+                1
+            ],
+            "paddings": [
+                2,
+                2,
+                1
+            ],
+            "activations": [
+                "relu",
+                "relu",
+                "relu"
+            ],
+            "pools": [],
+            "flatten": true
+        },
+        "fc": {
+            "hidden_layers": [
+                512
+            ],
+            "activations": [
+                "relu"
+            ],
+            "final_activation": null
+        },
+        "lr": 0.0001,
+        "epsilon": 0.5,
+        "epsilon_decay": 0.99,
+        "epsilon_min": 0.001,
+        "target_update": 10,
+        "tau": 0.1,
+        "gamma": 0.99,
+        "soft_update": true
+    }
+}

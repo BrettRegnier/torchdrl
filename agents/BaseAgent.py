@@ -2,6 +2,7 @@ import torch
 import numpy as np
 
 from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
+from representations.Plotter import Plotter
 
 class BaseAgent(object):
     def __init__(self, config):
@@ -15,6 +16,15 @@ class BaseAgent(object):
         self._device = config['device']
         self._seed = config['seed']
         self._enable_seed = config['enable_seed']
+
+        self._log = None
+        if config['log']:
+            self._log = Plotter()
+            self._log.AddFigure("Score", "Episode Score", "green")
+            self._log.AddFigure("Score", "Mean Score", "blue")
+        
+        self._show_log = config['show_log']
+        self._show_log_frequency = config['show_log_frequency']
 
         # TODO setup environment title
         self._action_type = "DISCRETE" if self._env.action_space.dtype == np.int64 else "CONTINUOUS"
@@ -40,11 +50,14 @@ class BaseAgent(object):
         self._total_steps = 0
     
     def Train(self, num_episodes=-1):
-        self._episode = 1
+        self._episode = 0
 
         done_training = False
         mean_score = 0
         while self._episode != num_episodes and not done_training:
+            if self._enable_seed:
+                self._env.seed(self._seed)
+
             episode_reward, steps, info = self.PlayEpisode(evaluate=False)
 
             self._episode_scores.append(episode_reward)
@@ -58,12 +71,25 @@ class BaseAgent(object):
                     done_training = True
             
             self._episode += 1
+
+
             win = ""
             if 'win' in info:
                 win = "win: " + str(info['win'])
 
             # TODO visualization
             print(("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f " + win) % (self._episode, steps, episode_reward, mean_score))
+
+            # show/add to log
+            if self._log != None:
+                self._log.AddPoint("Score", "Episode Score", (self._episode, episode_reward))
+                self._log.AddPoint("Score", "Mean Score", (self._episode, mean_score))
+                if self._show_log and self._episode % self._show_log_frequency == 0:
+                    self._log.ShowAll()
+
+
+        # finished training
+        # TODO add saving of plot and model and info
 
     def Evaluate(self):
         raise NotImplementedError("Error must implenet the Evaluate function")
