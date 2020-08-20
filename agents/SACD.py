@@ -18,24 +18,36 @@ class SACD(SAC):
         BaseAgent.__init__(self, config)
         assert self._action_type == "DISCRETE", "Action types must be discrete. Use SAC for continuous actions"
         
-        self._critic1 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
-        self._critic2 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
+        critic_convo = None
+        if self._hyperparameters['critic_convo'] is not None:
+            cnc = self._hyperparameters['critic_convo']
+            critic_convo = CN(self._input_shape, cnc['filters'], cnc['kernels'], cnc['strides'], cnc['paddings'], cnc['activations'], cnc['pools'], cnc['flatten'])
+
+        critic_fc = self._hyperparameters['critic_fc']
+        
+        actor_convo = None
+        if self._hyperparameters['actor_convo'] is not None:
+            cnc = self._hyperparameters['actor_convo']
+            actor_convo = CN(self._input_shape, cnc['filters'], cnc['kernels'], cnc['strides'], cnc['paddings'], cnc['activations'], cnc['pools'], cnc['flatten'])
+
+        actor_fc = self._hyperparameters['actor_fc']
+        
+        self._critic1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
+        self._critic2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
 
         self._critic_optimizer1 = optim.Adam(self._critic1.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
         self._critic_optimizer2 = optim.Adam(self._critic2.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
 
-        self._critic_target1 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
-        self._critic_target2 = FCN(self._input_shape, self._n_actions, self._hyperparameters['critic_hidden_layers'], self._hyperparameters['critic_activations'], self._hyperparameters['critic_final_activation']).to(self._device)
+        self._critic_target1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
+        self._critic_target2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
 
         self.CopyNetwork(self._critic1, self._critic_target1)
         self.CopyNetwork(self._critic2, self._critic_target2)
         
-        self._actor = FCN(self._input_shape, self._n_actions, self._hyperparameters['actor_hidden_layers'], self._hyperparameters['actor_activations'], self._hyperparameters['actor_final_activation']).to(self._device)
+        self._actor = FCN(self._input_shape, self._n_actions, actor_fc['hidden_layers'], actor_fc['activations'], actor_fc['final_activation']).to(self._device)
         self._actor_optimizer = optim.Adam(self._actor.parameters(), lr=self._hyperparameters['actor_lr'], eps=1e-4)
 
-        # self._target_entropy = -torch.prod(torch.tensor(self._env.action_space.shape).to(self._device)).item()
-        target_entropy_ratio = 0.98
-        self._target_entropy = -np.log(1.0/self._n_actions) * target_entropy_ratio
+        self._target_entropy = -torch.prod(torch.tensor(self._env.action_space.shape).to(self._device)).item()
         self._log_alpha = torch.zeros(1, requires_grad=True, device=self._device)
         self._alpha = self._log_alpha.exp().detach()
         self._alpha_optimizer = optim.Adam([self._log_alpha], lr=self._hyperparameters['alpha_lr'])

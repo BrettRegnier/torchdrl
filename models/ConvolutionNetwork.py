@@ -45,6 +45,12 @@ class ConvolutionNetwork(BaseNetwork):
 
         if flatten:
             convos.append(Flatten())
+            
+        # initialize weights
+        for layer in convos:
+            if type(layer) == nn.Conv2d:
+                nn.init.xavier_uniform_(layer.weight)
+            
         self._net = nn.Sequential(*convos)
         self._net_list = convos
 

@@ -4,6 +4,7 @@ import torch
 from data_structures.UniformExperienceReplay import UniformExperienceReplay
 from data_structures import Config
 from agents.DQL import DQL
+from agents.SACD import SACD
 
 # device = torch.device('cuda') # move into config.
 # env = gym.make("CartPole-v0") # move into config
@@ -65,12 +66,13 @@ config = {
 
 # TODO add visualization
 
-# Config.Save("configs/DQL_Minesweeper-v0.txt", config); exit()
+# Config.Save("configs/SACD_CartPole-v0.txt", config); exit()
 
-config = Config.Load("configs/DQL_CartPole-v1.txt")
+config = Config.Load("configs/SACD_CartPole-v0.txt")
 
-# TODO make this modular?
+# TODO make this modular? or move into the agent...
 config['env'] = RegisteredEnvs.BuildEnv(config['env'], config['env_kwargs'])
 
-agent = DQL(config)
+# agent = DQL(config)
+agent = SACD(config)
 agent.Train()

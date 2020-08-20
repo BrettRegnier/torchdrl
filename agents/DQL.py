@@ -36,7 +36,7 @@ class DQL(BaseAgent):
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
 
         if config['log']:
-            self._log.AddFigure("Loss", "Mean loss", "red")
+            self._log.AddFigure("Loss", "Episode loss", "red")
             self._losses = []
 
     
@@ -57,7 +57,7 @@ class DQL(BaseAgent):
                 self.Learn()
 
                 if self._config['log']:
-                    self._losses.append(self._loss)
+                    self._losses.append(self._loss.item())
 
                 # update epsilon
                 self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
@@ -69,7 +69,7 @@ class DQL(BaseAgent):
             self._total_steps += 1
 
         if self._config['log']:
-            self._log.AddPoint("Loss", "Mean loss", (self._episode, np.mean(self._losses)))
+            self._log.AddPoint("Loss", "Episode loss", (self._episode, np.mean(self._losses)))
             self._losses = []
             
         return episode_reward, steps, info
@@ -112,11 +112,9 @@ class DQL(BaseAgent):
 
         self._net_optimizer.zero_grad()
 
-        loss = ((td ** 2.0)).mean()
-        loss.backward()
+        self._loss = ((td ** 2.0)).mean()
+        self._loss.backward()
         self._net_optimizer.step()
-
-        self._loss = loss.item()
 
         # update target
         if self._total_steps % self._target_update == 0:

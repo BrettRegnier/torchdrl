@@ -41,6 +41,11 @@ class FullyConnectedNetwork(BaseNetwork):
         net.append(nn.Linear(hidden_layers[i], n_actions))
         if final_activation is not None:
             net.append(self.GetActivation(final_activation))
+            
+        # initialize weights
+        for layer in net:
+            if type(layer) == nn.Linear:
+                nn.init.xavier_uniform_(layer.weight)
 
         self._net = nn.Sequential(*net)
         self._net_list = net
