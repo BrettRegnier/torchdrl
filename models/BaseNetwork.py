@@ -24,7 +24,7 @@ class BaseNetwork(nn.Module):
     def GetActivation(self, activation:str):
         ac = activation.lower()
         if ac == "relu":
-            return nn.ReLU()
+            return nn.ReLU(inplace=False)
         elif ac == "softmax":
             return nn.Softmax(dim=1)
         elif ac == "sigmoid":

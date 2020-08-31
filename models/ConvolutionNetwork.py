@@ -56,12 +56,17 @@ class ConvolutionNetwork(BaseNetwork):
 
         out = self.forward(torch.zeros(1, *self._input_shape))
         self._output_size = [int(np.prod(out.size()))]
+        
+        print(self)
 
     def forward(self, state):
         return self._net(state)
 
-# x = ConvolutionNetwork((2, 3, 3), [1], [1], [1], [1], [1], [1],True)
+# x = ConvolutionNetwork((2, 3, 3), [2], [1], [1], [0], ["relu"], [], True)
 # out = x(torch.zeros(1, *[2, 3, 3]))
 # print(x)
+# print(out)
 # print(out.size())
-# print(x._out_features)
+# out = torch.mean(out)
+# print(out)
+# out.backward()

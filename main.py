@@ -42,14 +42,14 @@ config = {
         "fc": {
 
             "hidden_layers": [
-                512,
-                # 1024,
-                # 1024,
+                1024,
+                1024,
+                1024,
             ],
             "activations": [
                 "relu",
-                # "relu",
-                # "relu",
+                "relu",
+                "relu",
             ],
             "final_activation": None,
         },
@@ -66,13 +66,19 @@ config = {
 
 # TODO add visualization
 
+
 # Config.Save("configs/SACD_CartPole-v0.txt", config); exit()
 
-config = Config.Load("configs/SACD_CartPole-v0.txt")
+config = Config.Load("configs/Minesweeper-v0_SACD.txt")
+config = Config.Load("configs/CartPole-v0_SACD.txt")
 
 # TODO make this modular? or move into the agent...
 config['env'] = RegisteredEnvs.BuildEnv(config['env'], config['env_kwargs'])
 
 # agent = DQL(config)
-agent = SACD(config)
-agent.Train()
+with torch.autograd.set_detect_anomaly(True):
+    agent = SACD(config)
+    agent.Train()
+
+
+# try updating pytorch and cuda.

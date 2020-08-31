@@ -9,8 +9,8 @@ import numpy as np
 from agents.SAC import SAC
 from agents.BaseAgent import BaseAgent
 
+from models.ConvolutionNetwork import ConvolutionNetwork as CN
 from models.FullyConnectedNetwork import FullyConnectedNetwork as FCN
-from models.TwoHeadedNetwork import TwoHeadedNetwork as THN
 
 class SACD(SAC):
     name="SACD"
@@ -32,19 +32,19 @@ class SACD(SAC):
 
         actor_fc = self._hyperparameters['actor_fc']
         
-        self._critic1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
-        self._critic2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
+        self._critic1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], critic_convo).to(self._device)
+        self._critic2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], critic_convo).to(self._device)
 
         self._critic_optimizer1 = optim.Adam(self._critic1.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
         self._critic_optimizer2 = optim.Adam(self._critic2.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
 
-        self._critic_target1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
-        self._critic_target2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation']).to(self._device)
+        self._critic_target1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], critic_convo).to(self._device)
+        self._critic_target2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], critic_convo).to(self._device)
 
         self.CopyNetwork(self._critic1, self._critic_target1)
         self.CopyNetwork(self._critic2, self._critic_target2)
         
-        self._actor = FCN(self._input_shape, self._n_actions, actor_fc['hidden_layers'], actor_fc['activations'], actor_fc['final_activation']).to(self._device)
+        self._actor = FCN(self._input_shape, self._n_actions, actor_fc['hidden_layers'], actor_fc['activations'], actor_fc['final_activation'], actor_convo).to(self._device)
         self._actor_optimizer = optim.Adam(self._actor.parameters(), lr=self._hyperparameters['actor_lr'], eps=1e-4)
 
         self._target_entropy = -torch.prod(torch.tensor(self._env.action_space.shape).to(self._device)).item()
