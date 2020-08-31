@@ -6,13 +6,14 @@ import torch.optim as optim
 import numpy as np
 
 from models.BaseNetwork import BaseNetwork
+from models.ConvolutionNetwork import ConvolutionNetwork
 
 class FullyConnectedNetwork(BaseNetwork):
-    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, final_activation: str, prior_net = None):
+    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, final_activation: str, convo=None):
         super(FullyConnectedNetwork, self).__init__(input_shape)
 
         if type(n_actions) is not int:
-            raise AssertionError("Input shape must be of type int")
+            raise AssertionError("n_actions must be of type int")
         if type(final_activation) is not str and final_activation is not None:
             raise AssertionError("Last activation must be of type str")
 
@@ -21,24 +22,27 @@ class FullyConnectedNetwork(BaseNetwork):
 
         num_hidden_layers = len(hidden_layers)
 
-        net = []
-        if prior_net is None:
+        if convo is None:
+            self._convo = None
             in_features = [np.prod(input_shape)]
         else:
-            in_features = prior_net._output_size
-            net.extend(prior_net.NetList())
+            self._convo = ConvolutionNetwork(input_shape, convo['filters'], convo['kernels'], convo['strides'], convo['paddings'], convo['activations'], convo['pools'], convo['flatten'])
+            in_features = self._convo.OutputSize()
 
+        net = []
         net.append(nn.Linear(*in_features, hidden_layers[0]))
         if len(activations) > 0 and activations[0] is not None:
             net.append(self.GetActivation(activations[0]))
 
         i = 0
-        for i in range(1, num_hidden_layers):
-            net.append(nn.Linear(hidden_layers[i-1], hidden_layers[i]))
-            if len(activations) > i and activations[i] is not None:
-                    net.append(self.GetActivation(activations[i]))
+        if num_hidden_layers > 1:
+            for i in range(1, num_hidden_layers):
+                net.append(nn.Linear(hidden_layers[i-1], hidden_layers[i]))
+                if len(activations) > i and activations[i] is not None:
+                        net.append(self.GetActivation(activations[i]))
 
         net.append(nn.Linear(hidden_layers[i], n_actions))
+
         if final_activation is not None:
             net.append(self.GetActivation(final_activation))
             
@@ -51,4 +55,6 @@ class FullyConnectedNetwork(BaseNetwork):
         self._net_list = net
 
     def forward(self, state):
+        if self._convo is not None:
+            state = self._convo(state)
         return self._net(state)

@@ -1,39 +1,40 @@
-# TODO make it generic
-
 import torch.nn as nn
 import torch.distributions as dis
 import torch.nn.functional as F
 import torch.optim as optim
 
+import numpy as np
+
 from models.BaseNetwork import BaseNetwork
+from models.FullyConnectedNetwork import FullyConnectedNetwork
+from models.ConvolutionNetwork import ConvolutionNetwork
 
 class TwoHeadedNetwork(BaseNetwork):
-    def __init__(self, input_shape, n_actions, convo=False):
-        super(TwoHeadedNetwork, self).__init__()		
-        
-        self._body = nn.Sequential(
-            nn.Linear(*input_shape, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU()
-        )
-        # self._fc1 = nn.Linear(*input_shape, 64)
-        # self._fc2 = nn.Linear(64, 64)
-        # self._head1 = nn.Linear(64, n_actions)
-        # self._head2 = nn.Linear(64, n_actions)
+    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, final_activation: str, convo=None):
+        super(TwoHeadedNetwork, self).__init__(input_shape)
 
-        self._head1 = nn.Sequential(
-            nn.Linear(64, n_actions),
-            nn.Softmax(dim=1)
-            )
-            
-        self._head2 = nn.Sequential(
-            nn.Linear(64, n_actions),
-            nn.Softmax(dim=1)
-            )
+        if type(n_actions) is not int:
+            raise AssertionError("Input shape must be of type int")
+        if type(final_activation) is not str and final_activation is not None:
+            raise AssertionError("Last activation must be of type str")
+
+        self.AssertParameter(hidden_layers, "hidden_layers", int)
+        self.AssertParameter(activations, "activations", str, -1)
+
+        last_layer = (hidden_layers[-1:])[0]
+        last_activation = (activations[-1:])[0]
+        self._net = FullyConnectedNetwork(input_shape, last_layer, hidden_layers, activations, last_activation, convo)
+
+        heads = [nn.Linear(last_layer, n_actions)]
+        if final_activation is not None:
+            heads.append(self.GetActivation(final_activation))
+
+        self._head1 = nn.Sequential(*heads)
+        self._head2 = nn.Sequential(*heads)
+        
+        # TODO add this in
+        self._net_list = None
 
     def forward(self, state):
-        x = self._body(state)
-        out1 = self._head1(x)
-        out2 = self._head2(x)
-        return out1, out2
+        state = self._net(state)
+        return self._head1(state), self._head2(state)

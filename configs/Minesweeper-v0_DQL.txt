@@ -15,36 +15,26 @@
     "max_steps": -1,
     "visualize": false,
     "visualize_frequency": 10,
-    "log": true,
+    "log": false,
     "show_log": true,
     "show_log_frequency": 1,
-    "enable_seed": false,
+    "enable_seed": true,
     "seed": 0,
     "hyperparameters": {
         "convo": {
             "filters": [
-                80,
-                40,
-                40
+                300
             ],
             "kernels": [
-                5,
-                3,
                 3
             ],
             "strides": [
-                1,
-                1,
                 1
             ],
             "paddings": [
-                2,
-                2,
-                1
+                0
             ],
             "activations": [
-                "relu",
-                "relu",
                 "relu"
             ],
             "pools": [],
@@ -52,9 +42,13 @@
         },
         "fc": {
             "hidden_layers": [
-                512
+                1024,
+                1024,
+                1024
             ],
             "activations": [
+                "relu",
+                "relu",
                 "relu"
             ],
             "final_activation": null
@@ -65,7 +59,7 @@
         "epsilon_min": 0.001,
         "target_update": 10,
         "tau": 0.1,
-        "gamma": 0.99,
+        "gamma": 0.0,
         "soft_update": true
     }
 }

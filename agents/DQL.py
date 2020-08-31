@@ -23,16 +23,11 @@ class DQL(BaseAgent):
 
         # for soft update
         self._soft_update = self._hyperparameters['soft_update']
-        self._tau = self._hyperparameters['tau'] 
-        
-        convo = None
-        if self._hyperparameters['convo'] is not None:
-            cnc = self._hyperparameters['convo']
-            convo = CN(self._input_shape, cnc['filters'], cnc['kernels'], cnc['strides'], cnc['paddings'], cnc['activations'], cnc['pools'], cnc['flatten'])
+        self._tau = self._hyperparameters['tau']
 
         fcc = self._hyperparameters['fc']
-        self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], convo).to(self._device)
-        self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], convo).to(self._device)
+        self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
 
         if config['log']:
@@ -50,8 +45,9 @@ class DQL(BaseAgent):
             action = self.Act(state)
                 
             next_state, reward, done, info = self._env.step(action)
-            
-            self._memory.Append(state, action, next_state, reward, done)
+
+            if not (steps == 0 and done):
+                self._memory.Append(state, action, next_state, reward, done)
 
             if len(self._memory) > self._batch_size and self._total_steps > self._warm_up:
                 self.Learn()
@@ -75,7 +71,7 @@ class DQL(BaseAgent):
         return episode_reward, steps, info
 
     @torch.no_grad()
-    def Act(self, state):            
+    def Act(self, state):  
         if random.random() < self._epsilon:
             action = self._env.action_space.sample()
         else:

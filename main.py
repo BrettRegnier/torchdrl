@@ -24,23 +24,37 @@ config = {
     "max_steps": -1,
     "visualize": False,
     "visualize_frequency": 10,
-    "log": True,
+    "log": False,
     "show_log": True,
     "show_log_frequency": 1,
     "enable_seed": False,
     "seed": 0,
     "hyperparameters": {
         "convo": {
-            "filters": [80, 40, 40],
-            "kernels": [5, 3, 3],
-            "strides": [1, 1, 1],
-            "paddings": [2, 2, 1],
-            "activations": ["relu", "relu", "relu"],
+            "filters": [
+                80,
+                30,
+            ],
+            "kernels": [
+                5, 
+                3,
+            ],
+            "strides": [
+                1,
+                1,
+            ],
+            "paddings": [
+                2,
+                1,
+            ],
+            "activations": [
+                "relu",
+                "relu",
+            ],
             "pools": [],
-            "flatten": True,
+            "flatten": True
         },
         "fc": {
-
             "hidden_layers": [
                 1024,
                 1024,
@@ -59,7 +73,7 @@ config = {
         "epsilon_min": 0.001,
         "target_update": 10,
         "tau": 0.1,
-        "gamma": 0.99,
+        "gamma": 0.001, # important
         "soft_update": True
     }
 }
@@ -67,18 +81,20 @@ config = {
 # TODO add visualization
 
 
-# Config.Save("configs/SACD_CartPole-v0.txt", config); exit()
+# Config.Save("configs/Minesweeper-v0_DQL2.txt", config); exit()
 
-config = Config.Load("configs/Minesweeper-v0_SACD.txt")
-config = Config.Load("configs/CartPole-v0_SACD.txt")
+# config = Config.Load("configs/Minesweeper-v0_SACD.txt")
+# config = Config.Load("configs/CartPole-v0_SACD.txt")
+# config = Config.Load("configs/CartPole-v0_DQL.txt")
+# config = Config.Load("configs/Minesweeper-v0_DQL.txt")
 
 # TODO make this modular? or move into the agent...
 config['env'] = RegisteredEnvs.BuildEnv(config['env'], config['env_kwargs'])
 
-# agent = DQL(config)
-with torch.autograd.set_detect_anomaly(True):
-    agent = SACD(config)
-    agent.Train()
+# with torch.autograd.set_detect_anomaly(True):
+agent = DQL(config)
+# agent = SACD(config)
+agent.Train()
 
 
 # try updating pytorch and cuda.

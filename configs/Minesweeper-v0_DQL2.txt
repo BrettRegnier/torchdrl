@@ -9,21 +9,19 @@
     "reward_window": 100,
     "memory_size": 100000,
     "batch_size": 64,
-    "warm_up": 0,
+    "warm_up": 1000,
     "n_step_update": 1,
     "n_updates_per_learn": 1,
     "max_steps": -1,
     "visualize": false,
     "visualize_frequency": 10,
-    "log": true,
+    "log": false,
     "show_log": true,
     "show_log_frequency": 1,
-    "enable_seed": false,
+    "enable_seed": true,
     "seed": 0,
     "hyperparameters": {
-        "convo": true,
-        "actor_lr": 0.0003,
-        "actor_convo": {
+        "convo": {
             "filters": [
                 80,
                 40,
@@ -52,63 +50,26 @@
             "pools": [],
             "flatten": true
         },
-        "actor_fc": {
+        "fc": {
             "hidden_layers": [
+                2048,
                 1024,
-                512
+                1024
             ],
             "activations": [
                 "relu",
-                "relu",
-                "relu"
-            ],
-            "final_activation": "softmax"
-        },
-        "actor_gradient_clipping_norm": 5,
-        "critic_lr": 0.0003,
-        "critic_convo": {
-            "filters": [
-                80,
-                40,
-                40
-            ],
-            "kernels": [
-                5,
-                3,
-                3
-            ],
-            "strides": [
-                1,
-                1,
-                1
-            ],
-            "paddings": [
-                2,
-                2,
-                1
-            ],
-            "activations": [
-                "relu",
-                "relu",
-                "relu"
-            ],
-            "pools": [],
-            "flatten": true
-        },
-        "critic_tau": 0.005,
-        "critic_fc": {
-            "hidden_layers": [
-                1024,
-                512
-            ],
-            "activations": [
                 "relu",
                 "relu"
             ],
             "final_activation": null
         },
-        "critic_gradient_clipping_norm": 5,
-        "alpha_lr": 0.0003
-    },
-    "gamma": 0.99
+        "lr": 0.0001,
+        "epsilon": 0.5,
+        "epsilon_decay": 0.99,
+        "epsilon_min": 0.001,
+        "target_update": 10,
+        "tau": 0.1,
+        "gamma": 0.001,
+        "soft_update": true
+    }
 }

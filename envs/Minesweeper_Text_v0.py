@@ -24,7 +24,7 @@ class Minesweeper_Text_v0(gym.Env):
             
         self._mode = "one-hot"
         if "mode" in kwargs.keys():
-            self._flat = kwargs["mode"]
+            self._mode = kwargs["mode"]
 
         self._rows = int(6 * difficulty + 2)
         self._columns = int(11 * difficulty - difficulty**2)
@@ -41,17 +41,27 @@ class Minesweeper_Text_v0(gym.Env):
         self._MAX_STEPS = (self._rows * self._columns) - self._mines
 
         self.action_space = spaces.Discrete(self._rows * self._columns)
-        self.observation_space = spaces.Box(
-            low=-1, high=9, shape=(10, self._rows, self._columns), dtype=np.float32)
-        # self.observation_space = spaces.Box(low=0, high=10, shape=(
-        #     1, self._rows * self._columns), dtype=np.int32)
+
+        if self._mode == "one-hot":
+            # self.observation_space = spaces.Box(
+            #     low=-1, high=9, shape=(10, self._rows, self._columns), dtype=np.float32)
+            shape = (10, self._rows, self._columns)
+        elif self._mode == "simplified":
+            pass
+        elif self._mode == "basic":
+            shape = (1, self._rows, self._columns)
+        else:            
+            shape = (1, self._rows * self._columns)
+
+        self.observation_space = spaces.Box(low=0, high=10, shape=shape, dtype=np.int32)
 
     def step(self, action):
         tile = self._board[action]
         self._done = False
         self._win = False
         state = None
-        reward = -0.3
+        reward = -0.1
+        # reward = 0
 
         # check if mine or out of steps
         if tile[IS_MINE] == True:
@@ -61,7 +71,8 @@ class Minesweeper_Text_v0(gym.Env):
 
         # check if unrevealed
         if tile[STATE] == UNREVEALED_TILE and not self._done:
-            reward = 0.9
+            reward = 1.0
+            # reward = 1.0
 
             # reveal all neighbouring tiles that can be
             queue = [tile]
@@ -179,16 +190,20 @@ class Minesweeper_Text_v0(gym.Env):
             
         elif self._mode == "simplified":
             pass
-        else:
+        elif self._mode == "basic":
             neighbours = []
             for t in self._board:
                 states.append(t[STATE])
             state_np = np.array(states, dtype=np.float32)
             
             # convolution
-            if not self._flat:
-                state_np = np.reshape(state_np, (-1, self._columns))
-                state_np = np.expand_dims(state_np, axis=0)
+            state_np = np.reshape(state_np, (-1, self._columns))
+            state_np = np.expand_dims(state_np, axis=0)
+        else:
+            neighbours = []
+            for t in self._board:
+                states.append(t[STATE])
+            state_np = np.array(states, dtype=np.float32)
 
         return state_np
 

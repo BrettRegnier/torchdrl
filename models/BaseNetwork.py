@@ -48,3 +48,6 @@ class BaseNetwork(nn.Module):
 
     def NetList(self):
         return self._net_list
+
+    def OutputSize(self):
+        return self._output_size

@@ -115,11 +115,11 @@ class SAC(BaseAgent):
         
         critic_loss1, critic_loss2 = self.CriticLoss(states_t, actions_t, next_states_t, rewards_t, dones_t)
         
-        self.OptimizationStep(self._critic_optimizer1, self._critic1, critic_loss1, self._hyperparameters["critic_gradient_clipping_norm"])     
-        self.OptimizationStep(self._critic_optimizer2, self._critic2, critic_loss2, self._hyperparameters["critic_gradient_clipping_norm"])     
+        self.OptimizationStep(self._critics_optimizer, self._critics, critic_loss1, self._hyperparameters["critic_gradient_clipping_norm"], retain_graph=True)     
+        self.OptimizationStep(self._critics_optimizer, self._critics, critic_loss2, self._hyperparameters["critic_gradient_clipping_norm"], retain_graph=True)
 
         actor_loss, log_pi = self.ActorLoss(states_t)
-        self.OptimizationStep(self._actor_optimizer, self._actor, actor_loss, self._hyperparameters["actor_gradient_clipping_norm"])     
+        self.OptimizationStep(self._actor_optimizer, self._actor, actor_loss, self._hyperparameters["actor_gradient_clipping_norm"], retain_graph=True)     
 
         alpha_loss = self.EntropyLoss(log_pi)
         self.OptimizationStep(self._alpha_optimizer, None, alpha_loss, None)     

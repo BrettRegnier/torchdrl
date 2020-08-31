@@ -55,9 +55,7 @@ class ConvolutionNetwork(BaseNetwork):
         self._net_list = convos
 
         out = self.forward(torch.zeros(1, *self._input_shape))
-        self._output_size = [int(np.prod(out.size()))]
-        
-        print(self)
+        self._output_size = (int(np.prod(out.size())),)
 
     def forward(self, state):
         return self._net(state)
