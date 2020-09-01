@@ -1,0 +1,50 @@
+{
+    "env": "NumberSort",
+    "env_kwargs": {"numbers": [1,3,2,5,4]},
+    "device": "cuda",
+    "reward_goal": 1000,
+    "reward_window": 100,
+    "memory_size": 100000,
+    "batch_size": 32,
+    "warm_up": 0,
+    "n_step_update": 1,
+    "n_updates_per_learn": 1,
+    "max_steps": -1,
+    "visualize": false,
+    "visualize_frequency": 10,
+    "log": true,
+    "show_log": true,
+    "show_log_frequency": 1,
+    "enable_seed": false,
+    "seed": 0,
+    "hyperparameters": {
+        "convo": true,
+        "actor_lr": 0.0003,
+        "actor_convo": null,
+        "actor_fc": {
+            "hidden_layers": [
+                1024
+            ],
+            "activations": [
+                "relu"
+            ],
+            "final_activation": "softmax"
+        },
+        "actor_gradient_clipping_norm": 5,
+        "critic_lr": 0.0003,
+        "critic_convo": null,
+        "critic_tau": 0.005,
+        "critic_fc": {
+            "hidden_layers": [
+                1024
+            ],
+            "activations": [
+                "relu"
+            ],
+            "final_activation": null
+        },
+        "critic_gradient_clipping_norm": 5,
+        "alpha_lr": 0.0003
+    },
+    "gamma": 0.99
+}

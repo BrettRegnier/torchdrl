@@ -1,5 +1,5 @@
 import torch
-from torch.nn import MSELoss
+import torch.nn.functional as F
 from torch.optim import Adam
 import numpy as np
 import random
@@ -104,11 +104,13 @@ class DQL(BaseAgent):
 
         q_target = rewards_t + self._gamma * next_action_qs
 
-        td = q_target - q_values
+        # td = q_target - q_values
 
         self._net_optimizer.zero_grad()
 
-        self._loss = ((td ** 2.0)).mean()
+        self._loss = F.cross_entropy(q_values, actions_t)
+
+        # self._loss = ((td ** 2.0)).mean()
         self._loss.backward()
         self._net_optimizer.step()
 
