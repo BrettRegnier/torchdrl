@@ -5,7 +5,7 @@
         "mode": "one-hot"
     },
     "device": "cuda",
-    "reward_goal": 150,
+    "reward_goal": 12,
     "reward_window": 100,
     "memory_size": 100000,
     "batch_size": 64,
@@ -55,7 +55,8 @@
         "actor_fc": {
             "hidden_layers": [
                 1024,
-                512
+                1024,
+                1024
             ],
             "activations": [
                 "relu",
@@ -99,9 +100,11 @@
         "critic_fc": {
             "hidden_layers": [
                 1024,
-                512
+                1024,
+                1024
             ],
             "activations": [
+                "relu",
                 "relu",
                 "relu"
             ],

@@ -1,0 +1,44 @@
+{
+    "env": "FiveNumSort",
+    "env_kwargs": {},
+    "device": "cuda",
+    "reward_goal": 150,
+    "reward_window": 100,
+    "memory_size": 10000,
+    "batch_size": 32,
+    "warm_up": 0,
+    "n_step_update": 1,
+    "n_updates_per_learn": 1,
+    "max_steps": -1,
+    "visualize": false,
+    "visualize_frequency": 10,
+    "log": true,
+    "show_log": true,
+    "show_log_frequency": 1,
+    "enable_seed": false,
+    "seed": 0,
+    "hyperparameters": {
+        "convo": null,
+        "fc": {
+            "hidden_layers": [
+                64,
+                64,
+                64
+            ],
+            "activations": [
+                "relu",
+                "relu",
+                "relu"
+            ],
+            "final_activation": null
+        },
+        "lr": 0.001,
+        "epsilon": 0.1,
+        "epsilon_decay": 5e-05,
+        "epsilon_min": 0.001,
+        "target_update": 10,
+        "tau": 0.1,
+        "gamma": 0.99,
+        "soft_update": true
+    }
+}

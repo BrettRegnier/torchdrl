@@ -27,7 +27,7 @@ config = {
     "log": False,
     "show_log": True,
     "show_log_frequency": 1,
-    "enable_seed": False,
+    "enable_seed": True,
     "seed": 0,
     "hyperparameters": {
         "convo": {
@@ -83,18 +83,21 @@ config = {
 
 # Config.Save("configs/Minesweeper-v0_DQL2.txt", config); exit()
 
+# config = Config.Load("configs/Minesweeper-v0_DQL.tx")
 # config = Config.Load("configs/Minesweeper-v0_SACD.txt")
-# config = Config.Load("configs/CartPole-v0_SACD.txt")
+
 # config = Config.Load("configs/CartPole-v0_DQL.txt")
-# config = Config.Load("configs/Minesweeper-v0_DQL.txt")
+config = Config.Load("configs/CartPole-v0_SACD.txt")
+
+# config = Config.Load("configs/FiveNumSort_DQL.txt")
 
 # TODO make this modular? or move into the agent...
 config['env'] = RegisteredEnvs.BuildEnv(config['env'], config['env_kwargs'])
 
 # with torch.autograd.set_detect_anomaly(True):
-agent = DQL(config)
-# agent = SACD(config)
+# agent = DQL(config)
+agent = SACD(config)
 agent.Train()
 
 
-# try updating pytorch and cuda.
+# try using bootstrapped DQN
