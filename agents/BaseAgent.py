@@ -72,13 +72,14 @@ class BaseAgent(object):
             
             self._episode += 1
 
-
-            win = ""
-            if 'win' in info:
-                win = "win: " + str(info['win'])
+            msg = ""
+            for k in info:
+                msg += k + ": " + str(info[k]) + ", "
+            # if 'win' in info:
+            #     win = "win: " + str(info['win'])
 
             # TODO visualization
-            print(("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f " + win) % (self._episode, steps, episode_reward, mean_score))
+            print(("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f " + msg) % (self._episode, steps, episode_reward, mean_score))
 
             # show/add to log
             if self._log != None:

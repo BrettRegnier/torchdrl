@@ -4,7 +4,7 @@
     "device": "cuda",
     "reward_goal": 1000,
     "reward_window": 100,
-    "memory_size": 100000,
+    "memory_size": 1000,
     "batch_size": 32,
     "warm_up": 0,
     "n_step_update": 1,
@@ -23,9 +23,15 @@
         "actor_convo": null,
         "actor_fc": {
             "hidden_layers": [
-                1024
+                100,
+                100,
+                100,
+                100
             ],
             "activations": [
+                "relu",
+                "relu",
+                "relu",
                 "relu"
             ],
             "final_activation": "softmax"
@@ -36,9 +42,15 @@
         "critic_tau": 0.005,
         "critic_fc": {
             "hidden_layers": [
-                1024
+                100,
+                100,
+                100,
+                100
             ],
             "activations": [
+                "relu",
+                "relu",
+                "relu",
                 "relu"
             ],
             "final_activation": null

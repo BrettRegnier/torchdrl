@@ -38,7 +38,7 @@ class NumberSort(gym.Env):
     def step(self, action):
         self._steps += 1
         done = True
-        reward = -5.0
+        reward = -0
 
         self._prev_state = self._state[:]
         i, j = self._actions[action]
@@ -54,14 +54,14 @@ class NumberSort(gym.Env):
 
         for i in range(len(self._state)):
             if self._state[i] == self._correct_state[i]:
-                reward += 1
+                reward += 0
             else:
                 done = False
             # if self._prev_state[i] == self._correct_state[i]:
             #     reward -= 1.0
 
         if done:
-            #reward += 10
+            reward = 1
             self.render()
 
         return self.state(), reward, done, {}

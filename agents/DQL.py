@@ -67,6 +67,8 @@ class DQL(BaseAgent):
         if self._config['log']:
             self._log.AddPoint("Loss", "Episode loss", (self._episode, np.mean(self._losses)))
             self._losses = []
+
+        info['epsilon'] = round(self._epsilon, 3)
             
         return episode_reward, steps, info
 
@@ -104,13 +106,12 @@ class DQL(BaseAgent):
 
         q_target = rewards_t + self._gamma * next_action_qs
 
-        # td = q_target - q_values
-
         self._net_optimizer.zero_grad()
 
-        self._loss = F.cross_entropy(q_values, actions_t)
+        # self._loss = F.l1_loss(q_values, q_target)
+        self._loss = F.smooth_l1_loss(q_values, q_target)
 
-        # self._loss = ((td ** 2.0)).mean()
+        # self._loss = (((q_target - q_values) ** 2.0)).mean()
         self._loss.backward()
         self._net_optimizer.step()
 

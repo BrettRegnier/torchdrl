@@ -82,8 +82,11 @@ class SACD(SAC):
         q_value1 = self._critic1(states_t).gather(1, actions_t_usq).squeeze(-1)
         q_value2 = self._critic2(states_t).gather(1, actions_t_usq).squeeze(-1)
 
-        critic_loss1 = F.mse_loss(q_value1, next_q_value)
-        critic_loss2 = F.mse_loss(q_value2, next_q_value)
+        # critic_loss1 = F.mse_loss(q_value1, next_q_value)
+        # critic_loss2 = F.mse_loss(q_value2, next_q_value)
+
+        critic_loss1 = F.smooth_l1_loss(q_value1, next_q_value)
+        critic_loss2 = F.smooth_l1_loss(q_value2, next_q_value)
 
         return critic_loss1, critic_loss2
 
