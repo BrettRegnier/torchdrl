@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
@@ -21,19 +23,13 @@ class DQL(BaseAgent):
         self._target_update = self._hyperparameters['target_update']
         self._gamma = self._hyperparameters['gamma']
 
-        # for soft update
-        self._soft_update = self._hyperparameters['soft_update']
+        # soft update
         self._tau = self._hyperparameters['tau']
 
         fcc = self._hyperparameters['fc']
         self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
-
-        if config['log']:
-            self._log.AddFigure("Loss", "Episode loss", "red")
-            self._losses = []
-
     
     def PlayEpisode(self, evaluate=False):
         done = False
@@ -52,9 +48,6 @@ class DQL(BaseAgent):
             if len(self._memory) > self._batch_size and self._total_steps > self._warm_up:
                 self.Learn()
 
-                if self._config['log']:
-                    self._losses.append(self._loss.item())
-
                 # update epsilon
                 self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
             
@@ -63,10 +56,6 @@ class DQL(BaseAgent):
 
             steps += 1
             self._total_steps += 1
-
-        if self._config['log']:
-            self._log.AddPoint("Loss", "Episode loss", (self._episode, np.mean(self._losses)))
-            self._losses = []
 
         info['epsilon'] = round(self._epsilon, 3)
             
@@ -108,27 +97,32 @@ class DQL(BaseAgent):
 
         self._net_optimizer.zero_grad()
 
-        # self._loss = F.l1_loss(q_values, q_target)
-        self._loss = F.smooth_l1_loss(q_values, q_target)
+        loss = F.smooth_l1_loss(q_values, q_target)
 
         # self._loss = (((q_target - q_values) ** 2.0)).mean()
-        self._loss.backward()
+        loss.backward()
         self._net_optimizer.step()
 
         # update target
         if self._total_steps % self._target_update == 0:
-            self.CopyNetwork(self._net, self._target_net)
+            self.CopyNetwork(self._net, self._target_net, self._tau)
 
-    # currently broken
-    # https://towardsdatascience.com/deep-q-learning-for-the-cartpole-44d761085c2f
-    def SoftTargetUpdate(self, network, target_network, tau=0.1):
-        model_params = network.named_parameters()
-        target_params = target_network.named_parameters()
+    def Save(self, folderpath="saved_models"):
+        if not os.path.exists(folderpath):
+            os.mkdir(folderpath)
 
-        updated_params = dict(target_params)
+        filepath = filepath + "/" + self._config['env_name'] + "_score_" + self._mean_episode_score + "_dql.pt"
 
-        for model_name, model_param in model_params:
-            if model_name in target_params:
-                updated_params[model_name].data.copy_((tau) * model_param.data + (1-tau) * target_params[model_param].data)
+        torch.save({
+            'net_state_dict': self._net.state_dict(),
+            'target_net_state_dict': self._target_net.state_dict(),
+            'net_optimizer_state_dict': self._net_optimizer.state_dict()
+        }, filepath)
+
+    def Load(self, filepath):
+        checkpoint = torch.load(filepath)
+
+        self._net.load_state_dict(checkpoint['net_state_dict'])
+        self._target_net.load_state_dict(checkpoint['target_net_state_dict'])
+        self._net_optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
         
-        target_network.load_state_dict(updated_params)

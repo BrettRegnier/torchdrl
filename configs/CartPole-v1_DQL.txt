@@ -1,5 +1,6 @@
 {
-    "env": "CartPole-v1",
+    "agent": "DQL",
+    "env_name": "CartPole-v1",
     "env_kwargs": {},
     "device": "cuda",
     "reward_goal": 500,

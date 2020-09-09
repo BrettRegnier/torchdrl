@@ -1,5 +1,6 @@
 {
-    "env": "NumberSort",
+    "agent": "DQL",
+    "env_name": "NumberSort",
     "env_kwargs": {"numbers": [1,3,2,4,5]},
     "device": "cuda",
     "reward_goal": 150,

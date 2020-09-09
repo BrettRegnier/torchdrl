@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 
+import shared
+
 from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
 from representations.Plotter import Plotter
 
@@ -22,6 +24,7 @@ class BaseAgent(object):
             self._log = Plotter()
             self._log.AddFigure("Score", "Episode Score", "green")
             self._log.AddFigure("Score", "Mean Score", "blue")
+            self._log.AddFigure("Win-Loss", "Win Chance", "orange")
         
         self._show_log = config['show_log']
         self._show_log_frequency = config['show_log_frequency']
@@ -48,20 +51,25 @@ class BaseAgent(object):
         self._visualize = config["visualize"]
         self._visualize_frequency = config["visualize_frequency"] # how many episodes
         self._total_steps = 0
+
+        # print info
+        self._wins = 0
+        self._loses = 0
     
     def Train(self, num_episodes=-1):
         self._episode = 0
 
         done_training = False
         mean_score = 0
-        while self._episode != num_episodes and not done_training:
+        while self._episode != num_episodes and not done_training and not shared.stop_training:
             if self._enable_seed:
                 self._env.seed(self._seed)
 
             episode_reward, steps, info = self.PlayEpisode(evaluate=False)
 
             self._episode_scores.append(episode_reward)
-            mean_score = np.mean(self._episode_scores[-self._reward_window:])
+            self._episode_scores = self._episode_scores[-self._reward_window:]
+            mean_score = np.mean(self._episode_scores)
 
             if episode_reward > self._best_episode_score:
                 self._best_episode_score = episode_reward
@@ -74,9 +82,17 @@ class BaseAgent(object):
 
             msg = ""
             for k in info:
-                msg += k + ": " + str(info[k]) + ", "
-            # if 'win' in info:
-            #     win = "win: " + str(info['win'])
+                if k == 'win':
+                    win = "win: " + str(info['win'])
+                    if info['win']:
+                        self._wins += 1
+                    else:
+                        self._loses += 1
+                    msg += "wins: " + str(self._wins) + ", "
+                    msg += "loses: " + str(self._loses) + ", "
+                else:
+                    msg += k + ": " + str(info[k]) + ", "
+
 
             # TODO visualization
             print(("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f " + msg) % (self._episode, steps, episode_reward, mean_score))
@@ -85,8 +101,13 @@ class BaseAgent(object):
             if self._log != None:
                 self._log.AddPoint("Score", "Episode Score", (self._episode, episode_reward))
                 self._log.AddPoint("Score", "Mean Score", (self._episode, mean_score))
+                if self._loses > 0:
+                    self._log.AddPoint("Win-Loss", "Win Chance", (self._episode, self._wins/self._episode))
                 if self._show_log and self._episode % self._show_log_frequency == 0:
                     self._log.ShowAll()
+
+            if shared.save:
+                self.Save()
 
 
         # finished training
@@ -103,6 +124,12 @@ class BaseAgent(object):
 
     def Learn(self):
         raise NotImplementedError("Error must implement Learn function")
+
+    def Save(self, filepath):
+        raise NotImplementedError("Error must implement save function")
+
+    def Load(self, filepath):
+        raise NotImplementedError("Error must implement load function")
 
     def OptimizationStep(self, optimizer, network, loss, clipping_norm=None, retain_graph=False):
         optimizer.zero_grad()
@@ -124,7 +151,6 @@ class BaseAgent(object):
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
 
-    def CopyNetwork(self, net, target_net):
-        target_net.load_state_dict(net.state_dict())
-        
-# TODO somehow many it generic enough to have a network buildable based on inputs
+    def CopyNetwork(self, net, target_net, tau=1.0):
+        for target_param, local_param in zip(target_net.parameters(), net.parameters()):
+            target_param.data.copy_(tau*local_param.data + (1.0-tau) * target_param.data)

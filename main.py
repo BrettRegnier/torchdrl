@@ -1,104 +1,61 @@
-from envs import RegisteredEnvs
+import argparse
+import threading
+
 import gym
 import torch
-from data_structures.UniformExperienceReplay import UniformExperienceReplay
+
+from ui.Commandline import Commandline
+
 from data_structures import Config
+from envs import RegisteredEnvs
+
 from agents.DQL import DQL
+from agents.SAC import SAC
 from agents.SACD import SACD
 
-# device = torch.device('cuda') # move into config.
-# env = gym.make("CartPole-v0") # move into config
-# memory = UniformExperienceReplay(1000) # TODO generalize this. #move to config
-
-config = {
-    "env": "Minesweeper_Text_v0",
-    "env_kwargs": {"difficulty": 1, "mode": "one-hot"},
-    "device": "cuda",
-    "reward_goal": 150,
-    "reward_window": 100,
-    "memory_size": 100000,
-    "batch_size": 64,
-    "warm_up": 1000,
-    "n_step_update": 1,
-    "n_updates_per_learn": 1,
-    "max_steps": -1,
-    "visualize": False,
-    "visualize_frequency": 10,
-    "log": False,
-    "show_log": True,
-    "show_log_frequency": 1,
-    "enable_seed": True,
-    "seed": 0,
-    "hyperparameters": {
-        "convo": {
-            "filters": [
-                80,
-                30,
-            ],
-            "kernels": [
-                5, 
-                3,
-            ],
-            "strides": [
-                1,
-                1,
-            ],
-            "paddings": [
-                2,
-                1,
-            ],
-            "activations": [
-                "relu",
-                "relu",
-            ],
-            "pools": [],
-            "flatten": True
-        },
-        "fc": {
-            "hidden_layers": [
-                1024,
-                1024,
-                1024,
-            ],
-            "activations": [
-                "relu",
-                "relu",
-                "relu",
-            ],
-            "final_activation": None,
-        },
-        "lr": 0.0001,
-        "epsilon": 0.5,
-        "epsilon_decay": 0.99,
-        "epsilon_min": 0.001,
-        "target_update": 10,
-        "tau": 0.1,
-        "gamma": 0.001, # important
-        "soft_update": True
-    }
-}
-
 # TODO add visualization
-
-
-# Config.Save("configs/Minesweeper-v0_DQL2.txt", config); exit()
-
-# config = Config.Load("configs/Minesweeper-v0_DQL.txt")
 # config = Config.Load("configs/Minesweeper-v0_SACD.txt")
 
-# config = Config.Load("configs/CartPole-v0_DQL.txt")
-# config = Config.Load("configs/CartPole-v0_SACD.txt")
-
-config = Config.Load("configs/NumberSort_DQL.txt")
-# config = Config.Load("configs/NumberSort_SACD.txt")
-
 # TODO make this modular? or move into the agent...
-config['env'] = RegisteredEnvs.BuildEnv(config['env'], config['env_kwargs'])
 
-# with torch.autograd.set_detect_anomaly(True):
-agent = DQL(config)
-# agent = SACD(config)
-agent.Train()
+def Main():
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("--ui", default="commandline", action="store_true")
+    args = parser.parse_args()
+
+    ui = None
+    if args.ui == "commandline":
+        ui = Commandline()
+
+        config_path = ui.GetConfig()
+        config = Config.Load(config_path)
+        config['env'] = RegisteredEnvs.BuildEnv(config['env_name'], config['env_kwargs'])
+        agent = MakeAgent(config['agent'], config)
+
+        train_thread = threading.Thread(target=agent.Train)
+        train_thread.daemon = True
+        train_thread.start()
+        
+        ui.Begin()
+
+    elif args.ui == "gui":
+        raise NotImplementedError("GUI not implemented")
+
+def MakeAgent(agent_name, config):
+    agent = None
+    if agent_name == "DQL":
+        agent = DQL(config)
+    elif agent_name == "SAC":
+        agent = SAC(config)
+    elif agent_name == "SACD":
+        agent = SACD(config)
+    else:
+        raise AssertionError("No agent with that name")
+
+    return agent
+
+if __name__ == "__main__":
+    Main()
 
 
 # TODO change loss calculation to hinge loss

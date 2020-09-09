@@ -1,5 +1,6 @@
 {
-    "env": "NumberSort",
+    "agent": "SACD",
+    "env_name": "NumberSort",
     "env_kwargs": {"numbers": [1,3,2,5,4]},
     "device": "cuda",
     "reward_goal": 1000,

@@ -1,5 +1,6 @@
 {
-    "env": "Minesweeper_Text_v0",
+    "agent": "DQL",
+    "env_name": "Minesweeper_Text_v0",
     "env_kwargs": {
         "difficulty": 1,
         "mode": "one-hot"

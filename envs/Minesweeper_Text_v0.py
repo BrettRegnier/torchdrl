@@ -32,6 +32,10 @@ class Minesweeper_Text_v0(gym.Env):
                            difficulty + 0.10506) * (self._rows * self._columns)), 4)
 
 
+        self._rows = 4
+        self._columns = 4
+        self._mines = 3
+
         self._board = None
         self._unrevealed_remaining = (self._rows * self._columns) - self._mines
 
@@ -60,8 +64,7 @@ class Minesweeper_Text_v0(gym.Env):
         self._done = False
         self._win = False
         state = None
-        reward = -0.1
-        # reward = 0
+        reward = -0.3
 
         # check if mine or out of steps
         if tile[IS_MINE] == True:
@@ -71,8 +74,7 @@ class Minesweeper_Text_v0(gym.Env):
 
         # check if unrevealed
         if tile[STATE] == UNREVEALED_TILE and not self._done:
-            reward = 1.0
-            # reward = 1.0
+            reward = 0.9
 
             # reveal all neighbouring tiles that can be
             queue = [tile]

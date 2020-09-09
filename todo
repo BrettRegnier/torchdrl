@@ -1,0 +1,9 @@
+-Does it work better with
+    -more mines consistently?
+    -deeper?
+    -crying?
+
+
+-Add in commandline saving and other options to change the state of the AI running
+-Add in ability to clear logs and save current graph.
+-Add in thread that deals with the graphs and just updates based on a bool value?

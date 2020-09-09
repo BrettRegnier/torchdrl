@@ -22,8 +22,8 @@ class SAC(BaseAgent):
         self._critic1 = FCN(critic_in_shape, 1).to(self._device)
         self._critic2 = FCN(critic_in_shape, 1).to(self._device)
 
-        self._critic_optimizer1 = optim.Adam(self._critic1.parameters(), lr=lr)
-        self._critic_optimizer2 = optim.Adam(self._critic2.parameters(), lr=lr)
+        self._critic_optimizer1 = optim.Adam(self._critic1.parameters(), lr=hyperparamters['critic_lr'])
+        self._critic_optimizer2 = optim.Adam(self._critic2.parameters(), lr=hyperparamters['critic_lr'])
 
         self._critic_target1 = FCN(critic_in_shape, 1).to(self._device)
         self._critic_target2 = FCN(critic_in_shape, 1).to(self._device)
@@ -31,16 +31,18 @@ class SAC(BaseAgent):
         self._critic_target1.CopyModel(self._critic1)
         self._critic_target2.CopyModel(self._critic2)
 
+        self._critic_tau = self._hyperparameters['critic_tau']
+
         # self._actor = FCN(self._input_shape, self._n_actions*2).to(self._device)
         self._actor = THN(self._input_shape, self._n_actions).to(self._device)
-        self._actor_optimizer = optim.Adam(self._actor.parameters(), lr=lr)
+        self._actor_optimizer = optim.Adam(self._actor.parameters(), lr=hyperparamters['critic_lr'])
 
         # self._target_entropy = -torch.prod(torch.tensor(self._env.action_space.shape).to(self._device)).item()
         target_entropy_ratio = 0.98
         self._target_entropy = -np.log(1.0/self._n_actions) * target_entropy_ratio
         self._log_alpha = torch.zeros(1, requires_grad=True, device=self._device)
         self._alpha = self._log_alpha.exp()
-        self._alpha_optimizer = optim.Adam([self._log_alpha], lr=lr)
+        self._alpha_optimizer = optim.Adam([self._log_alpha], lr=hyperparamters['alpha_lr'])
 
         self._add_noise = False
         # TODO add noise to output
@@ -59,17 +61,30 @@ class SAC(BaseAgent):
         episode_reward = 0
 
         state = self._env.reset()
-        while steps != self._max_steps and not done:
-            if self._total_steps < self._warm_up:
-                action = self._env.action_space.sample()
-            else:
-                action = self.Act(state, evaluate=evaluate)
 
+        # this is to optimize the loop a little bit by 
+        # avoiding running a useless if statement
+        while (self._total_steps < self._warm_up or len(self._memory) < self._batch_size) and not done:
+            action = self._env.action_space.sample()
             next_state, reward, done, info = self._env.step(action)
-            self._memory.Append(state, action, next_state, reward, done)
 
-            if self._total_steps >= self._warm_up and self._total_steps > self._batch_size:
-                self.Learn()
+            if not (steps == 0 and done):
+                self._memory.Append(state, action, next_state, reward, done)
+
+            episode_reward += reward
+            state = next_state
+            steps += 1
+            self._total_steps += 1
+
+        while steps != self._max_steps and not done:
+            action = self.Act(state, evaluate=evaluate)
+            next_state, reward, done, info = self._env.step(action)
+
+            if not (steps == 0 and done):
+                self._memory.Append(state, action, next_state, reward, done)
+
+            # if self._total_steps >= self._warm_up and self._total_steps > self._batch_size:
+            self.Learn()
 
             episode_reward += reward
             state = next_state
@@ -101,16 +116,13 @@ class SAC(BaseAgent):
         z = normal.rsample()
         action = torch.tanh(z)
         
-        log_prob = normal.log_prob(z)
-        log_prob -= torch.log(1 - action.pow(2) + 1e-6)
-        log_prob = log_prob.sum(1, keepdim=True)
-        # log_prob = (normal.log_prob(z) - torch.log(1 - (torch.tanh(z)).pow(2) + 1e-6)).sum(1, keepdim=True)
+        # log_prob = normal.log_prob(z)
+        # log_prob -= torch.log(1 - action.pow(2) + 1e-6)
+        # log_prob = log_prob.sum(1, keepdim=True)
+        log_prob = (normal.log_prob(z) - torch.log(1 - (torch.tanh(z)).pow(2) + 1e-6)).sum(1, keepdim=True)
         return action, log_prob, torch.tanh(mean)
 
     def Learn(self):
-
-        # will crash if memory is empty...
-        # TODO add error checking in memory
         states_t, actions_t, next_states_t, rewards_t, dones_t = self.SampleMemoryT(self._batch_size)
         
         critic_loss1, critic_loss2 = self.CriticLoss(states_t, actions_t, next_states_t, rewards_t, dones_t)
@@ -122,15 +134,10 @@ class SAC(BaseAgent):
         self.OptimizationStep(self._actor_optimizer, self._actor, actor_loss, self._hyperparameters["actor_gradient_clipping_norm"])     
 
         alpha_loss = self.EntropyLoss(log_pi)
-        self.OptimizationStep(self._alpha_optimizer, None, alpha_loss, None)     
+        self.OptimizationStep(self._alpha_optimizer, None, alpha_loss, None)
 
-        # update the target networks
-        tau = self._hyperparameters['critic_tau']
-        for target_param, local_param in zip(self._critic_target1.parameters(), self._critic1.parameters()):
-            target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
-
-        for target_param, local_param in zip(self._critic_target2.parameters(), self._critic2.parameters()):
-            target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
+        self.CopyNetwork(self._critic1, self._critic_target1, self._critic_tau)
+        self.CopyNetwork(self._critic2, self._critic_target2, self._critic_tau)
 
         self._alpha = self._log_alpha.exp()
 
@@ -164,5 +171,40 @@ class SAC(BaseAgent):
     def EntropyLoss(self, log_pi):
         alpha_loss = -(self._log_alpha * (log_pi + self._target_entropy).detach()).mean()
         return alpha_loss
+    
+    def Save(self, folderpath="saved_models"):
+        if not os.path.exists(folderpath):
+            os.mkdir(folderpath)
 
+        filepath = filepath + "/" + self._config['env_name'] + "_score_" + self._mean_episode_score + "_dql.pt"
 
+        torch.save({
+            'critic1_state_dict': self._critic1.state_dict(),
+            'critic1_state_dict': self._critic2.state_dict(),
+            'critic_target1_state_dict': self._critic_target1.state_dict(),
+            'critic_target2_state_dict': self._critic_target2.state_dict(),
+            'critic_optimizer1_state_dict': self._critic_optimizer1.state_dict(),
+            'critic_optimizer2_state_dict': self._critic_optimizer2.state_dict(),
+            'actor_state_dict': self._actor.state_dict(),
+            'actor_optimizer_state_dict': self._actor_optimizer.state_dict(),
+            'alpha_state_dict': self._alpha.state_dict(),
+            'alpha_optimizer_state_dict': self._alpha_optimizer.state_dict(),
+        }, filepath)
+
+    def Load(self, filepath):
+        checkpoint = torch.load(filepath)
+
+        self._critic1.load_state_dict(checkpoint['critic1_state_dict'])
+        self._critic2.load_state_dict(checkpoint['critic2_state_dict'])
+        
+        self._critic_target1.load_state_dict(checkpoint['critic_target1_state_dict'])
+        self._critic_target2.load_state_dict(checkpoint['critic_target2_state_dict'])
+
+        self._critic_optimizer1.load_state_dict(checkpoint['critic_optimizer1_state_dict'])
+        self._critic_optimizer2.load_state_dict(checkpoint['critic_optimizer2_state_dict'])
+
+        self._actor.load_state_dict(checkpoint['actor_state_dict'])
+        self._actor_optimizer.load_state_dict(checkpoint['actor_optimizer_state_dict'])
+
+        self._alpha.load_state_dict(checkpoint['alpha_state_dict'])
+        self._alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer_state_dict'])

@@ -37,6 +37,8 @@ class SACD(SAC):
         self.CopyNetwork(self._critic1, self._critic_target1)
         self.CopyNetwork(self._critic2, self._critic_target2)
         
+        self._critic_tau = self._hyperparameters['critic_tau']
+
         self._actor = FCN(self._input_shape, self._n_actions, actor_fc['hidden_layers'], actor_fc['activations'], actor_fc['final_activation'], self._hyperparameters['actor_convo']).to(self._device)
         self._actor_optimizer = optim.Adam(self._actor.parameters(), lr=self._hyperparameters['actor_lr'], eps=1e-4)
 

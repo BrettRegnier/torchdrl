@@ -1,5 +1,6 @@
 {
-    "env": "CartPole-v0",
+    "agent": "SACD",
+    "env_name": "CartPole-v0",
     "env_kwargs": {},
     "device": "cuda",
     "reward_goal": 150,

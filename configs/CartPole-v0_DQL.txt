@@ -1,5 +1,6 @@
 {
-    "env": "CartPole-v0",
+    "agent": "DQL",
+    "env_name": "CartPole-v0",
     "env_kwargs": {},
     "device": "cuda",
     "reward_goal": 150,
@@ -32,11 +33,10 @@
         },
         "lr": 0.001,
         "epsilon": 0.1,
-        "epsilon_decay": 5e-05,
+        "epsilon_decay": 0.99,
         "epsilon_min": 0.001,
         "target_update": 10,
         "tau": 0.1,
-        "gamma": 0.99,
-        "soft_update": true
+        "gamma": 0.99
     }
 }
