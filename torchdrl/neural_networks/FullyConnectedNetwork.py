@@ -5,11 +5,11 @@ import torch.optim as optim
 
 import numpy as np
 
-from models.BaseNetwork import BaseNetwork
-from models.ConvolutionNetwork import ConvolutionNetwork
+from .BaseNetwork import BaseNetwork
+from .ConvolutionNetwork import ConvolutionNetwork
 
 class FullyConnectedNetwork(BaseNetwork):
-    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, final_activation: str, convo=None):
+    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation: str, convo=None):
         super(FullyConnectedNetwork, self).__init__(input_shape)
 
         if type(n_actions) is not int:
@@ -19,6 +19,7 @@ class FullyConnectedNetwork(BaseNetwork):
 
         self.AssertParameter(hidden_layers, "hidden_layers", int)
         self.AssertParameter(activations, "activations", str, -1)
+        self.AssertParameter(dropouts, "dropouts", float, 0)
 
         num_hidden_layers = len(hidden_layers)
 
@@ -33,6 +34,8 @@ class FullyConnectedNetwork(BaseNetwork):
         net.append(nn.Linear(*in_features, hidden_layers[0]))
         if len(activations) > 0 and activations[0] is not None:
             net.append(self.GetActivation(activations[0]))
+        if len(dropouts) > 0 and dropouts[0] is not None:
+            net.append(nn.Dropout(dropouts[0]))
 
         i = 0
         if num_hidden_layers > 1:
@@ -40,9 +43,10 @@ class FullyConnectedNetwork(BaseNetwork):
                 net.append(nn.Linear(hidden_layers[i-1], hidden_layers[i]))
                 if len(activations) > i and activations[i] is not None:
                         net.append(self.GetActivation(activations[i]))
+                if len(dropouts) > i and dropouts[i] is not None:
+                        net.append(nn.Dropout(dropouts[i]))
 
         net.append(nn.Linear(hidden_layers[i], n_actions))
-
         if final_activation is not None:
             net.append(self.GetActivation(final_activation))
             

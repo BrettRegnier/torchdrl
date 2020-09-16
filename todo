@@ -3,6 +3,10 @@
     -deeper?
     -crying?
 
+-Minesweeper:
+    -Can I make a wrapper that handles bigger games, such that once it has been trained
+        to play easier ones (5x5) then have it play bigger games.
+    -Add visualization
 
 -Add in commandline saving and other options to change the state of the AI running
 -Add in ability to clear logs and save current graph.

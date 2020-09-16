@@ -1,10 +1,10 @@
 import torch
 import numpy as np
 
-import shared
+from ..data_structures import Shared
 
-from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
-from representations.Plotter import Plotter
+from ..data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
+from ..representations.Plotter import Plotter
 
 class BaseAgent(object):
     def __init__(self, config):
@@ -29,7 +29,6 @@ class BaseAgent(object):
         self._show_log = config['show_log']
         self._show_log_frequency = config['show_log_frequency']
 
-        # TODO setup environment title
         self._action_type = "DISCRETE" if self._env.action_space.dtype == np.int64 else "CONTINUOUS"
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
         self._input_shape = self._env.observation_space.shape
@@ -95,7 +94,7 @@ class BaseAgent(object):
 
 
             # TODO visualization
-            print(("Episode: %d, steps: %d, episode reward: %.2f, mean reward: %.2f " + msg) % (self._episode, steps, episode_reward, mean_score))
+            print(("Episode: %d, steps: %d, total steps: %d, episode reward: %.2f, mean reward: %.2f " + msg) % (self._episode, steps, self._total_steps, episode_reward, mean_score))
 
             # show/add to log
             if self._log != None:

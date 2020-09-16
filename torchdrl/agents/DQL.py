@@ -5,13 +5,12 @@ import torch.nn.functional as F
 from torch.optim import Adam
 import numpy as np
 import random
-from agents.BaseAgent import BaseAgent
 
-from models.FullyConnectedNetwork import FullyConnectedNetwork as FCN 
-from models.ConvolutionNetwork import ConvolutionNetwork as CN
-from data_structures.UniformExperienceReplay import NewUEP as NUER
-from data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
-from representations.Plotter import Plotter
+from .BaseAgent import BaseAgent
+
+from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN 
+from ..neural_networks.ConvolutionNetwork import ConvolutionNetwork as CN
+from ..representations.Plotter import Plotter
 
 
 class DQL(BaseAgent):
@@ -27,8 +26,8 @@ class DQL(BaseAgent):
         self._tau = self._hyperparameters['tau']
 
         fcc = self._hyperparameters['fc']
-        self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
-        self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
     
     def PlayEpisode(self, evaluate=False):

@@ -1,6 +1,7 @@
 import gym
-from envs.Minesweeper_Text_v0 import Minesweeper_Text_v0
-from envs.NumberSort import NumberSort
+
+# TODO fix this up to have dynamic env registration
+# TODO or remove
 
 def GymRegistry():
     all_envs = gym.envs.registry.all()
@@ -19,7 +20,7 @@ def CustomEnv(env_id, args):
     if env_id == "Minesweeper_Text_v0":
         env = Minesweeper_Text_v0(**args)
     elif env_id == "DragonBoat_v0":
-        env = Minesweeper_Text_v0(**args)
+        env = BoatGym(**args)
     elif env_id == "NumberSort":
         env = NumberSort(**args)
 

@@ -2,7 +2,7 @@ import os
 from os import listdir
 from os.path import isfile, join
 
-import shared
+from ..data_structures import Shared
 
 
 class Commandline:

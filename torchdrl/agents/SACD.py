@@ -6,12 +6,12 @@ import torch.optim as optim
 
 import numpy as np
 
-from agents.SAC import SAC
-from agents.BaseAgent import BaseAgent
+from .SAC import SAC
+from .BaseAgent import BaseAgent
 
-from models.ConvolutionNetwork import ConvolutionNetwork as CN
-from models.FullyConnectedNetwork import FullyConnectedNetwork as FCN
-from models.TwoHeadedNetwork import TwoHeadedNetwork as THN
+from ..neural_networks.ConvolutionNetwork import ConvolutionNetwork as CN
+from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN
+from ..neural_networks.TwoHeadedNetwork import TwoHeadedNetwork as THN
 
 # TODO remove the connection of SAC and SACD due to the creation of the SAC network and then deletion waste of resources.
 # TODO generalize creating a convo network (using the config file)
@@ -25,21 +25,21 @@ class SACD(SAC):
         actor_fc = self._hyperparameters['actor_fc']
         critic_fc = self._hyperparameters['critic_fc']
         
-        self._critic1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
-        self._critic2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
+        self._critic1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['dropouts'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
+        self._critic2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['dropouts'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
 
         self._critic_optimizer1 = optim.Adam(self._critic1.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
         self._critic_optimizer2 = optim.Adam(self._critic2.parameters(), lr=self._hyperparameters['critic_lr'], eps=1e-4)
 
-        self._critic_target1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
-        self._critic_target2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
+        self._critic_target1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['dropouts'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
+        self._critic_target2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['dropouts'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
         
         self.CopyNetwork(self._critic1, self._critic_target1)
         self.CopyNetwork(self._critic2, self._critic_target2)
         
         self._critic_tau = self._hyperparameters['critic_tau']
 
-        self._actor = FCN(self._input_shape, self._n_actions, actor_fc['hidden_layers'], actor_fc['activations'], actor_fc['final_activation'], self._hyperparameters['actor_convo']).to(self._device)
+        self._actor = FCN(self._input_shape, self._n_actions, actor_fc['hidden_layers'], actor_fc['activations'], actor_fc['dropouts'], actor_fc['final_activation'], self._hyperparameters['actor_convo']).to(self._device)
         self._actor_optimizer = optim.Adam(self._actor.parameters(), lr=self._hyperparameters['actor_lr'], eps=1e-4)
 
         self._target_entropy = -torch.prod(torch.tensor(self._env.action_space.shape).to(self._device)).item()
@@ -83,6 +83,9 @@ class SACD(SAC):
 
         q_value1 = self._critic1(states_t).gather(1, actions_t_usq).squeeze(-1)
         q_value2 = self._critic2(states_t).gather(1, actions_t_usq).squeeze(-1)
+
+        # critic_loss1 = F.l1_loss(q_value1, next_q_value)
+        # critic_loss2 = F.l1_loss(q_value2, next_q_value)
 
         # critic_loss1 = F.mse_loss(q_value1, next_q_value)
         # critic_loss2 = F.mse_loss(q_value2, next_q_value)

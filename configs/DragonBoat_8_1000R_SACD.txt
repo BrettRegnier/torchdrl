@@ -1,0 +1,113 @@
+{
+    "agent": "SACD",
+    "env_name": "DragonBoat_v0",
+    "env_kwargs": {
+        "num_participants": 8
+    },
+    "device": "cuda",
+    "reward_goal": 1000,
+    "reward_window": 100,
+    "memory_size": 100000,
+    "batch_size": 64,
+    "warm_up": 10000,
+    "n_step_update": 1,
+    "n_updates_per_learn": 1,
+    "max_steps": 30,
+    "visualize": false,
+    "visualize_frequency": 10,
+    "log": true,
+    "show_log": true,
+    "show_log_frequency": 1,
+    "enable_seed": false,
+    "seed": 0,
+    "hyperparameters": {
+        "convo": true,
+        "actor_lr": 0.0001,
+        "actor_convo": {
+            "filters": [
+                300
+            ],
+            "kernels": [
+                [
+                    2,
+                    4
+                ]
+            ],
+            "strides": [
+                1
+            ],
+            "paddings": [
+                0
+            ],
+            "activations": [
+                "relu"
+            ],
+            "pools": [],
+            "flatten": true
+        },
+        "actor_fc": {
+            "hidden_layers": [
+                1024,
+                1024,
+                1024
+            ],
+            "activations": [
+                "relu",
+                "relu",
+                "relu"
+            ],
+            "dropouts": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "final_activation": "softmax"
+        },
+        "actor_gradient_clipping_norm": 5,
+        "critic_lr": 0.0001,
+        "critic_convo": {
+            "filters": [
+                300
+            ],
+            "kernels": [
+                [
+                    2,
+                    4
+                ]
+            ],
+            "strides": [
+                1
+            ],
+            "paddings": [
+                0
+            ],
+            "activations": [
+                "relu"
+            ],
+            "pools": [],
+            "flatten": true
+        },
+        "critic_tau": 0.005,
+        "critic_fc": {
+            "hidden_layers": [
+                1024,
+                1024,
+                1024
+            ],
+            "activations": [
+                "relu",
+                "relu",
+                "relu"
+            ],
+            "dropouts": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "final_activation": null
+        },
+        "critic_gradient_clipping_norm": 5,
+        "alpha_lr": 0.0003
+    },
+    "gamma": 0.99
+}

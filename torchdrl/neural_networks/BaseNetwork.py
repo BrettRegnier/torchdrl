@@ -11,7 +11,7 @@ class BaseNetwork(nn.Module):
     def AssertParameter(self, param, name, dtype, min_value=1):
         for x in param:
             l = x
-            if type(l) is not tuple:
+            if type(l) is not tuple and type(l) is not list:
                 l = (x,)
             
             for v in l:

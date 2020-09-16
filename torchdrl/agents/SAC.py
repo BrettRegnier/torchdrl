@@ -7,10 +7,9 @@ import numpy as np
 import sys
 sys.path.insert(1, '../')# TODO remove
 
-from agents.BaseAgent import BaseAgent
-# from FullyConnectedNetwork import FullyConnected
-from models.FullyConnectedNetwork import FullyConnectedNetwork as FCN
-from models.TwoHeadedNetwork import TwoHeadedNetwork as THN
+from .BaseAgent import BaseAgent
+from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN
+from ..neural_networks.TwoHeadedNetwork import TwoHeadedNetwork as THN
 
 class SAC(BaseAgent):
     def __init__(self, config):
@@ -64,7 +63,7 @@ class SAC(BaseAgent):
 
         # this is to optimize the loop a little bit by 
         # avoiding running a useless if statement
-        while (self._total_steps < self._warm_up or len(self._memory) < self._batch_size) and not done:
+        while steps != self._max_steps and (self._total_steps < self._warm_up or len(self._memory) < self._batch_size) and not done:
             action = self._env.action_space.sample()
             next_state, reward, done, info = self._env.step(action)
 
