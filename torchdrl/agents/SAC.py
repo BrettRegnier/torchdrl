@@ -5,7 +5,6 @@ import torch.optim as optim
 import numpy as np
 
 import sys
-sys.path.insert(1, '../')# TODO remove
 
 from .BaseAgent import BaseAgent
 from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN
