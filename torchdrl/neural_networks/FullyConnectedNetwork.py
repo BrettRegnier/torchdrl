@@ -1,7 +1,4 @@
 import torch.nn as nn
-import torch.distributions as dis
-import torch.nn.functional as F
-import torch.optim as optim
 
 import numpy as np
 
@@ -9,7 +6,7 @@ from .BaseNetwork import BaseNetwork
 from .ConvolutionNetwork import ConvolutionNetwork
 
 class FullyConnectedNetwork(BaseNetwork):
-    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation: str, convo=None):
+    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, convo=None):
         super(FullyConnectedNetwork, self).__init__(input_shape)
 
         if type(n_actions) is not int:

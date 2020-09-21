@@ -25,7 +25,7 @@ class BaseAgent(object):
         self._memory = UER(config['memory_size'])
         self._batch_size = config['batch_size']
         self._warm_up = config['warm_up']
-        self._max_steps = config['num_steps']
+        self._max_steps = config['max_steps']
         
         self._reward_goal = config["reward_goal"]
         self._reward_window = config["reward_window"] # how much to average the score over
@@ -61,7 +61,7 @@ class BaseAgent(object):
         num_episodes {int} -- Number of episodes to train the agent. Otherwise, will train until num_steps or hits the reward goal.
         num_steps {int} -- Number of total steps to train the agent. Otherwise, will train until num_episodes or hits the reward goal.
 
-        Yields {dict}: Epsisode {int}, steps {int}, episode_score {float}, mean_score {float}, best_score {float}, best_mean_score {float}, total_steps {int}, gym env episode info.
+        Yields {dict}: Episode {int}, steps {int}, episode_score {float}, mean_score {float}, best_score {float}, best_mean_score {float}, total_steps {int}, gym env episode info.
         """
         self._episode = 0
 
@@ -86,7 +86,7 @@ class BaseAgent(object):
             
             self._episode += 1
 
-            episode_info = {"episode": self._episode, "steps": steps, "episode_score": episode_score, "mean_score": mean_score, "best_score": self._best_score, "best_mean_score": self._best_mean_score, "total_steps": self._total_steps}
+            episode_info = {"episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(mean_score, 2), "best_score": round(self._best_score, 2), "best_mean_score": round(self._best_mean_score, 2), "total_steps": self._total_steps}
             episode_info.update(info)
             yield episode_info
 

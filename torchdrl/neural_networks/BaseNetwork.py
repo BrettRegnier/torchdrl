@@ -16,7 +16,7 @@ class BaseNetwork(nn.Module):
             
             for v in l:
                 if type(v) is not dtype:
-                    raise AssertionError(name + " invalid type" + str(type(x)) + " list must contain ints or int tuples")
+                    raise AssertionError(name + " invalid type" + str(x) + " list must contain " + str(dtype))
                 if min_value > 0 and v < min_value:
                     raise AssertionError((name + " cannot contain values less than %d") % min_value)
     
