@@ -8,8 +8,7 @@ import random
 
 from .BaseAgent import BaseAgent
 
-from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN 
-from ..neural_networks.ConvolutionNetwork import ConvolutionNetwork as CN
+from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork 
 from ..representations.Plotter import Plotter
 
 
@@ -26,9 +25,11 @@ class DQL(BaseAgent):
         self._tau = self._hyperparameters['tau']
 
         fcc = self._hyperparameters['fc']
-        self._net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
-        self._target_net = FCN(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        self._net = FullyConnectedNetwork(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        self._target_net = FullyConnectedNetwork(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
+
+        self.UpdateNetwork(self._net, self._target_net)
     
     def PlayEpisode(self, evaluate=False):
         done = False
@@ -96,15 +97,15 @@ class DQL(BaseAgent):
 
         self._net_optimizer.zero_grad()
 
+        # self._loss = (((q_target - q_values) ** 2.0)).mean()
         loss = F.smooth_l1_loss(q_values, q_target)
 
-        # self._loss = (((q_target - q_values) ** 2.0)).mean()
         loss.backward()
         self._net_optimizer.step()
 
         # update target
         if self._total_steps % self._target_update == 0:
-            self.CopyNetwork(self._net, self._target_net, self._tau)
+            self.UpdateNetwork(self._net, self._target_net, self._tau)
 
     def Save(self, folderpath="saved_models"):
         if not os.path.exists(folderpath):

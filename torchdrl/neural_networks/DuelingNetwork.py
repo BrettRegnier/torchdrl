@@ -39,7 +39,7 @@ class DuelingNetwork(BaseNetwork):
         adv = self._adv(x)
         val = self._val(x).expand(x.size(0), self._n_actions)
 
-        y = val + adv - adv.mean(1).unsqueeze(1).expand(x.size(0), self._n_actions)
+        y = val + adv - adv.mean()
 
         return y
 

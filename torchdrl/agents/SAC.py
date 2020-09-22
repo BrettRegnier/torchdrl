@@ -134,8 +134,8 @@ class SAC(BaseAgent):
         alpha_loss = self.EntropyLoss(log_pi)
         self.OptimizationStep(self._alpha_optimizer, None, alpha_loss, None)
 
-        self.CopyNetwork(self._critic1, self._critic_target1, self._critic_tau)
-        self.CopyNetwork(self._critic2, self._critic_target2, self._critic_tau)
+        self.UpdateNetwork(self._critic1, self._critic_target1, self._critic_tau)
+        self.UpdateNetwork(self._critic2, self._critic_target2, self._critic_tau)
 
         self._alpha = self._log_alpha.exp()
 

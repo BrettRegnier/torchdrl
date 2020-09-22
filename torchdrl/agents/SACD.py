@@ -34,8 +34,8 @@ class SACD(SAC):
         self._critic_target1 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['dropouts'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
         self._critic_target2 = FCN(self._input_shape, self._n_actions, critic_fc['hidden_layers'], critic_fc['activations'], critic_fc['dropouts'], critic_fc['final_activation'], self._hyperparameters['critic_convo']).to(self._device)
         
-        self.CopyNetwork(self._critic1, self._critic_target1)
-        self.CopyNetwork(self._critic2, self._critic_target2)
+        self.UpdateNetwork(self._critic1, self._critic_target1)
+        self.UpdateNetwork(self._critic2, self._critic_target2)
         
         self._critic_tau = self._hyperparameters['critic_tau']
 
