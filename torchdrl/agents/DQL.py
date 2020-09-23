@@ -66,8 +66,7 @@ class DQL(BaseAgent):
         if random.random() < self._epsilon:
             action = self._env.action_space.sample()
         else:
-            state_t = torch.tensor(state).float().detach()
-            state_t = state_t.to(self._device)
+            state_t = torch.tensor(state, dtype=torch.float32, device=self._device).detach()
             state_t = state_t.unsqueeze(0)
             
             q_values = self._net(state_t)
@@ -75,15 +74,8 @@ class DQL(BaseAgent):
 
         return action
     
-    # https://wegfawefgawefg.github.io/tutorials/rl/doubledeepql/doubledeepql.html
-    def Learn(self):        
-        states_np, actions_np, next_states_np, rewards_np, dones_np = self._memory.Sample(self._batch_size)
-
-        states_t = torch.tensor(states_np, dtype=torch.float32).to(self._device)
-        actions_t = torch.tensor(actions_np, dtype=torch.int64).to(self._device)
-        next_states_t = torch.tensor(next_states_np, dtype=torch.float32).to(self._device)
-        rewards_t = torch.tensor(rewards_np, dtype=torch.float32).to(self._device)
-        dones_t = torch.tensor(dones_np, dtype=torch.bool).to(self._device)
+    def Learn(self):
+        states_t, actions_t, next_states_t, rewards_t, dones_t = self.SampleMemoryT(self._batch_size)
 
         batch_indices = np.arange(self._batch_size, dtype=np.int64)
         q_values = self._net(states_t)[batch_indices, actions_t]

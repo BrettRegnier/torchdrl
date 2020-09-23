@@ -81,7 +81,7 @@ class BaseAgent(object):
                 self._best_score = episode_score
             if mean_score > self._best_mean_score:
                 self._best_mean_score = mean_score
-                if mean_score > self._reward_goal:
+                if mean_score > self._reward_goal and self._total_steps > self._warm_up:
                     done_training = True
             
             self._episode += 1
@@ -121,11 +121,11 @@ class BaseAgent(object):
     def SampleMemoryT(self, batch_size):
         states_np, actions_np, next_states_np, rewards_np, dones_np = self._memory.Sample(batch_size)
         
-        states_t = torch.tensor(states_np, dtype=torch.float32).to(self._device)
-        actions_t = torch.tensor(actions_np, dtype=torch.int64).to(self._device)
-        next_states_t = torch.tensor(next_states_np, dtype=torch.float32).to(self._device)
-        rewards_t = torch.tensor(rewards_np, dtype=torch.float32).to(self._device)
-        dones_t = torch.tensor(dones_np, dtype=torch.int64).to(self._device)
+        states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
+        actions_t = torch.tensor(actions_np, dtype=torch.int64, device=self._device)
+        next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)
+        rewards_t = torch.tensor(rewards_np, dtype=torch.float32, device=self._device)
+        dones_t = torch.tensor(dones_np, dtype=torch.bool, device=self._device)
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
 
