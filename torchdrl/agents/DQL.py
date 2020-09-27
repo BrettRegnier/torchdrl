@@ -18,11 +18,12 @@ class DQL(BaseAgent):
         self._epsilon = self._hyperparameters['epsilon']
         self._epsilon_decay = self._hyperparameters['epsilon_decay']
         self._epsilon_min = self._hyperparameters['epsilon_min']
-        self._target_update = self._hyperparameters['target_update']
         self._gamma = self._hyperparameters['gamma']
 
-        # soft update
         self._tau = self._hyperparameters['tau']
+        self._target_update_frequency = self._hyperparameters['target_update']
+        self._target_update_steps = 0
+
 
         fcc = self._hyperparameters['fc']
         self._net = FullyConnectedNetwork(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
@@ -55,6 +56,7 @@ class DQL(BaseAgent):
             state = next_state
 
             steps += 1
+            self._target_update_steps += 1
             self._total_steps += 1
 
         info['epsilon'] = round(self._epsilon, 3)
@@ -95,9 +97,10 @@ class DQL(BaseAgent):
         loss.backward()
         self._net_optimizer.step()
 
-        # update target
-        if self._total_steps % self._target_update == 0:
+        # update target 
+        if self._target_update_frequency >= self._target_update_steps:
             self.UpdateNetwork(self._net, self._target_net, self._tau)
+            self._target_update_steps = 0
 
     def Save(self, folderpath="saved_models"):
         if not os.path.exists(folderpath):

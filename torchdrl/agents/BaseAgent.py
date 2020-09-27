@@ -81,12 +81,12 @@ class BaseAgent(object):
                 self._best_score = episode_score
             if mean_score > self._best_mean_score:
                 self._best_mean_score = mean_score
-                if mean_score > self._reward_goal and self._total_steps > self._warm_up:
-                    done_training = True
+            if mean_score > self._reward_goal and self._total_steps > self._warm_up:
+                done_training = True
             
             self._episode += 1
 
-            episode_info = {"episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(mean_score, 2), "best_score": round(self._best_score, 2), "best_mean_score": round(self._best_mean_score, 2), "total_steps": self._total_steps}
+            episode_info = {"episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
             episode_info.update(info)
             yield episode_info
 
