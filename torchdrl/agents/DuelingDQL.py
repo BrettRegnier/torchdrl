@@ -14,5 +14,3 @@ class DuelingDQL(DQL):
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
 
         self.UpdateNetwork(self._net, self._target_net)
-
-    # TODO save and load function

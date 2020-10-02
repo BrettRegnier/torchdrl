@@ -68,6 +68,7 @@ class DQL(BaseAgent):
         if random.random() < self._epsilon:
             action = self._env.action_space.sample()
         else:
+            # why am i detaching?
             state_t = torch.tensor(state, dtype=torch.float32, device=self._device).detach()
             state_t = state_t.unsqueeze(0)
             
@@ -97,7 +98,7 @@ class DQL(BaseAgent):
         loss.backward()
         self._net_optimizer.step()
 
-        # update target 
+        # soft update target 
         if self._target_update_frequency >= self._target_update_steps:
             self.UpdateNetwork(self._net, self._target_net, self._tau)
             self._target_update_steps = 0
@@ -111,7 +112,8 @@ class DQL(BaseAgent):
         torch.save({
             'net_state_dict': self._net.state_dict(),
             'target_net_state_dict': self._target_net.state_dict(),
-            'net_optimizer_state_dict': self._net_optimizer.state_dict()
+            'net_optimizer_state_dict': self._net_optimizer.state_dict(),
+            'episode': self._episode
         }, filepath)
 
     def Load(self, filepath):
@@ -120,4 +122,5 @@ class DQL(BaseAgent):
         self._net.load_state_dict(checkpoint['net_state_dict'])
         self._target_net.load_state_dict(checkpoint['target_net_state_dict'])
         self._net_optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
+        self._episode.load_state_dict(checkpoint['episode'])
         
