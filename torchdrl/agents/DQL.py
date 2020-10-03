@@ -43,8 +43,8 @@ class DQL(BaseAgent):
                 
             next_state, reward, done, info = self._env.step(action)
 
-            if not (steps == 0 and done):
-                self._memory.Append(state, action, next_state, reward, done)
+            # if not (steps == 0 and done):
+            self._memory.Append(state, action, next_state, reward, done)
 
             if len(self._memory) > self._batch_size and self._total_steps > self._warm_up:
                 self.Learn()

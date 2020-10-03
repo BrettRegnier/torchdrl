@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import json
+import os
 
 class Plotter:
     def __init__(self):
@@ -47,19 +49,78 @@ class Plotter:
 
         plt.pause(0.05)		
         plt.show(block=False)
-        
 
-    def Save(self, path):
-        pass
+    def SaveImage(self, figure, path):
+        try:
+            last_slash = 0
+            for i in range(len(path)):
+                if path[i] == "/" or path[i] == "\\":
+                    last_slash = i
 
-    def SaveAll(self, path):
-        pass
+            sub_path = path[:last_slash]
+            filename = path[last_slash+1:] #maybe
 
-    def RemovePoint(self, x, y):
-        pass
+            if not os.path.exists(sub_path):
+                os.mkdir(sub_path)
+
+            if ".png" not in filename:
+                path += ".png"
+            
+            plt.figure(figure)
+            plt.savefig(path)
+        except:
+            print("Figure name: " + figure + " not found in figures")
+
+    def SaveAllImages(self, path):
+        for figure in self._figures:
+            if path[-1] != "/" or path[-1] != "\\":
+                path += "/"
+            path += figure
+            self.SaveImage(figure, path)
+
+    def SavePoints(self, figure, path):
+        try:
+            last_slash = 0
+            for i in range(len(path)):
+                if path[i] == "/" or path[i] == "\\":
+                    last_slash = i
+
+            sub_path = path[:last_slash]
+            filename = path[last_slash+1:] #maybe
+
+            if not os.path.exists(sub_path):
+                os.mkdir(sub_path)
+
+            if ".json" not in filename:
+                path += ".json"
+            
+            json.dump(self._figures[figure], open(path, "w"), indent=4)
+        except:
+            print("Figure name: " + figure + " not found in figures")
+
+    def SaveAllPoints(self, path):
+        for figure in self._figures:
+            if path[-1] != "/" or path[-1] != "\\":
+                path += "/"
+            path += figure
+            self.SavePoints(figure, path)
+
+    def RemovePoint(self, figure:str, label: str, point:tuple):
+        if figure in self._figures:
+            if label in self._figures[label]:
+                x1, y1 = point
+                for p in self._figures[figure][label]:
+                    x2, y2 = p
+                    if x1 == x2 and y1 == y2:
+                        self._figures[figure][label]['x'].remove(x1)
+                        self._figures[figure][label]['y'].remove(x2)
+                        return
     
-    def RemovePointIdx(self, idx):
-        pass
+    def RemovePointIdx(self, figure: str, label:str, idx:int):
+        if figure in self._figures:
+            if label in self._figures[label]:
+                self._figures[figure][label]['x'].pop(idx)
+                self._figures[figure][label]['y'].pop(idx)
     
     def ClearPlot(self, name):
         self.NewPlot(name)
@@ -74,19 +135,3 @@ class Plotter:
     def DeleteAll(self):
         for plot in self._plots:
             self._plots.pop(name, None)
-
-# plot = Plotter()
-# plot.AddPoint("test", (1, 1))
-# plot.AddPoint("test", (2, 2))
-
-# plot.AddPoint("x", (1, 1))
-# plot.AddPoint("x", (2, 2))
-# plot.ShowAll()
-
-# input("press enter")
-# plot.AddPoint("test", (3, 2))
-# plot.ShowAll()
-# input("press enter")
-# plot.AddPoint("test", (4, 6))
-# plot.ShowAll()
-# input("press enter")
