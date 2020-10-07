@@ -93,7 +93,7 @@ class BaseAgent(object):
             
             self._episode += 1
 
-            episode_info = {"episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
+            episode_info = {"episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(self._episode_mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
             episode_info.update(info)
 
             if self._episode % self._checkpoint_frequency == 0:
