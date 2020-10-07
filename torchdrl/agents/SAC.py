@@ -62,12 +62,12 @@ class SAC(BaseAgent):
 
         # this is to optimize the loop a little bit by 
         # avoiding running a useless if statement
-        while steps != self._max_steps and (self._total_steps < self._warm_up or len(self._memory) < self._batch_size) and not done:
+        while steps != self._max_steps and (self._total_steps < self._warm_up or len(self._memory) <= self._batch_size) and not done:
             action = self._env.action_space.sample()
             next_state, reward, done, info = self._env.step(action)
 
-            if not (steps == 0 and done):
-                self._memory.Append(state, action, next_state, reward, done)
+            # if not (steps == 0 and done):
+            self._memory.Append(state, action, next_state, reward, done)
 
             episode_reward += reward
             state = next_state
@@ -78,10 +78,10 @@ class SAC(BaseAgent):
             action = self.Act(state, evaluate=evaluate)
             next_state, reward, done, info = self._env.step(action)
 
-            if not (steps == 0 and done):
-                self._memory.Append(state, action, next_state, reward, done)
+            # if not (steps == 0 and done):
+            self._memory.Append(state, action, next_state, reward, done)
 
-            # if self._total_steps >= self._warm_up and self._total_steps > self._batch_size:
+            # if len(self._memory) > self._warm_up and len(self._memory) > self._batch_size:
             self.Learn()
 
             episode_reward += reward
@@ -120,8 +120,9 @@ class SAC(BaseAgent):
         log_prob = (normal.log_prob(z) - torch.log(1 - (torch.tanh(z)).pow(2) + 1e-6)).sum(1, keepdim=True)
         return action, log_prob, torch.tanh(mean)
 
+    # TODO implement prioritized experience replay
     def Learn(self):
-        states_t, actions_t, next_states_t, rewards_t, dones_t = self.SampleMemoryT(self._batch_size)
+        states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t = self.SampleMemoryT(self._batch_size)
         
         critic_loss1, critic_loss2 = self.CriticLoss(states_t, actions_t, next_states_t, rewards_t, dones_t)
         
@@ -138,6 +139,8 @@ class SAC(BaseAgent):
         self.UpdateNetwork(self._critic2, self._critic_target2, self._critic_tau)
 
         self._alpha = self._log_alpha.exp()
+
+        # self._memory.BatchUpdate(indices_np, errors)
 
 
     def CriticLoss(self, states_t, actions_t, next_states_t, rewards_t, dones_t):

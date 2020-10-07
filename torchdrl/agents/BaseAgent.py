@@ -22,8 +22,13 @@ class BaseAgent(object):
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
         self._input_shape = self._env.observation_space.shape
 
-        # TODO generalize how to choose memory.
-        self._memory = PrioritizedExperienceReplay(config['memory_size'])
+        if config['memory_type'] == "PER":
+            self._memory = PrioritizedExperienceReplay(config['memory_size'])
+        else:
+            self._memory = UniformExperienceReplay(config['memory_size'], self._input_shape)
+
+        self._checkpoint_frequency = config['checkpoint_frequency']
+
         self._batch_size = config['batch_size']
         self._warm_up = config['warm_up']
         self._max_steps = config['max_steps']
@@ -32,7 +37,7 @@ class BaseAgent(object):
         self._reward_window = config["reward_window"] # how much to average the score over
         self._episode_score = 0
         self._episode_scores = []
-        self._mean_episode_score = []
+        self._episode_mean_score = 0
         self._episode = 0
         self._best_score = float("-inf")
         self._best_mean_score = float("-inf")
@@ -77,7 +82,7 @@ class BaseAgent(object):
 
             self._episode_scores.append(episode_score)
             self._episode_scores = self._episode_scores[-self._reward_window:]
-            mean_score = np.mean(self._episode_scores)
+            self._episode_mean_score = np.mean(self._episode_scores)
 
             if episode_score > self._best_score:
                 self._best_score = episode_score
@@ -90,6 +95,10 @@ class BaseAgent(object):
 
             episode_info = {"episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
             episode_info.update(info)
+
+            if self._episode % self._checkpoint_frequency == 0:
+                self.Save(self._config['checkpoint_root'])
+
             yield episode_info
 
 

@@ -37,6 +37,21 @@ class DQL(BaseAgent):
         episode_reward = 0
         
         state = self._env.reset()
+
+        # this is to optimize the loop a little bit by 
+        # avoiding running a useless if statement after warm up
+        while steps != self._max_steps and (self._total_steps < self._warm_up or len(self._memory) < self._batch_size) and not done:
+            action = self._env.action_space.sample()
+            next_state, reward, done, info = self._env.step(action)
+
+            # if not (steps == 0 and done):
+            self._memory.Append(state, action, next_state, reward, done)
+
+            episode_reward += reward
+            state = next_state
+            steps += 1
+            self._total_steps += 1
+
         while steps != self._max_steps and not done:
             action = self.Act(state)
                 
@@ -45,11 +60,10 @@ class DQL(BaseAgent):
             # if not (steps == 0 and done):
             self._memory.Append(state, action, next_state, reward, done)
 
-            if len(self._memory) > self._batch_size and self._total_steps > self._warm_up:
-                self.Learn()
+            self.Learn()
 
-                # update epsilon
-                self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
+            # update epsilon
+            self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
             
             episode_reward += reward
             state = next_state
@@ -100,14 +114,14 @@ class DQL(BaseAgent):
                 errors[i] = (torch.abs(x - y) - 0.5)
             errors[i] = errors[i] * weights_t[i]
         
-        loss = (torch.sum(errors) / self._batch_size)
+        loss = (torch.sum(errors) / self._batch_size).mean()
         # print(loss);
 
         # loss = (((q_target - q_values) ** 2.0) * weights_t).mean()
         # loss = F.smooth_l1_loss(q_values, q_target)
-        # print(loss)
+        
+        loss.backward()
 
-        loss.mean().backward()
         # print(loss);exit()
         self._net_optimizer.step()
 
@@ -119,17 +133,18 @@ class DQL(BaseAgent):
         # print(errors); exit();
         self._memory.BatchUpdate(indices_np, errors.detach().cpu().numpy())
 
-    def Save(self, folderpath="saved_models"):
-        if not os.path.exists(folderpath):
-            os.mkdir(folderpath)
+    def Save(self, filepath="checkpoints"):
+        if not os.path.exists(filepath):
+            os.mkdir(filepath)
 
-        filepath = filepath + "/" + self._config['env_name'] + "_score_" + self._mean_episode_score + "_dql.pt"
+        filepath = filepath + "/" + self._config['name'] + "/episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + "_dql.pt"
 
         torch.save({
             'net_state_dict': self._net.state_dict(),
             'target_net_state_dict': self._target_net.state_dict(),
             'net_optimizer_state_dict': self._net_optimizer.state_dict(),
-            'episode': self._episode
+            'episode': self._episode,
+            'total_steps': self._total_steps
         }, filepath)
 
     def Load(self, filepath):
@@ -139,4 +154,5 @@ class DQL(BaseAgent):
         self._target_net.load_state_dict(checkpoint['target_net_state_dict'])
         self._net_optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
         self._episode.load_state_dict(checkpoint['episode'])
+        self._total_steps.load_state_dict(checkpoint['total_steps'])
         
