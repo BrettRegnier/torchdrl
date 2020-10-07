@@ -22,7 +22,6 @@ class DQL(BaseAgent):
 
         self._tau = self._hyperparameters['tau']
         self._target_update_frequency = self._hyperparameters['target_update']
-        self._target_update_steps = 0
 
 
         fcc = self._hyperparameters['fc']
@@ -56,7 +55,6 @@ class DQL(BaseAgent):
             state = next_state
 
             steps += 1
-            self._target_update_steps += 1
             self._total_steps += 1
 
         info['epsilon'] = round(self._epsilon, 3)
@@ -78,7 +76,7 @@ class DQL(BaseAgent):
         return action
     
     def Learn(self):
-        states_t, actions_t, next_states_t, rewards_t, dones_t = self.SampleMemoryT(self._batch_size)
+        states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t = self.SampleMemoryT(self._batch_size)
 
         batch_indices = np.arange(self._batch_size, dtype=np.int64)
         q_values = self._net(states_t)[batch_indices, actions_t]
@@ -92,16 +90,34 @@ class DQL(BaseAgent):
 
         self._net_optimizer.zero_grad()
 
-        # self._loss = (((q_target - q_values) ** 2.0)).mean()
-        loss = F.smooth_l1_loss(q_values, q_target)
+        # l1 smooth
+        errors = torch.empty(self._batch_size, device=self._device)
+        for i, values in enumerate(zip(q_target, q_values)):
+            x, y = values
+            if torch.abs(x - y) < 1:
+                errors[i] = (0.5 * ((x - y) ** 2))
+            else:
+                errors[i] = (torch.abs(x - y) - 0.5)
+            errors[i] = errors[i] * weights_t[i]
+        
+        loss = (torch.sum(errors) / self._batch_size)
+        # print(loss);
 
-        loss.backward()
+        # loss = (((q_target - q_values) ** 2.0) * weights_t).mean()
+        # loss = F.smooth_l1_loss(q_values, q_target)
+        # print(loss)
+
+        loss.mean().backward()
+        # print(loss);exit()
         self._net_optimizer.step()
 
         # soft update target 
-        if self._target_update_frequency >= self._target_update_steps:
+        if self._total_steps % self._target_update_frequency == 0:
             self.UpdateNetwork(self._net, self._target_net, self._tau)
-            self._target_update_steps = 0
+
+        # errors = loss.detach().cpu().numpy()
+        # print(errors); exit();
+        self._memory.BatchUpdate(indices_np, errors.detach().cpu().numpy())
 
     def Save(self, folderpath="saved_models"):
         if not os.path.exists(folderpath):

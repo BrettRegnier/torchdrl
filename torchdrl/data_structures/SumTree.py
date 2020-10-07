@@ -1,55 +1,68 @@
+import collections
 import numpy as np
+import numpy
+import random
 
 class SumTree:
-    data_pointer = 0
-
     def __init__(self, capacity):
-        self.capacity = capacity
+        self._capacity = capacity
+        self._tree_capacity = 2 * self._capacity - 1
+
+        # total nodes 
+        self._tree = np.zeros(self._tree_capacity)
+
+        # data is stored on the leaf nodes
+        self._data = np.zeros(capacity, dtype=object)
         
-        self.tree = np.zeros(2 * capacity - 1)
-        self.data = np.zeros(capacity, dtype=object)
+        self._data_pointer = 0
+        self._entries = 0
+
+    def Retrieve(self, idx, sample):
+        parent_idx = idx
+        left_idx = parent_idx * 2 + 1
+        right_idx = left_idx + 1
+
+        while not left_idx >= self._tree_capacity:
+            node_value = self._tree[left_idx]
+            if sample <= node_value:
+                parent_idx = left_idx
+            else:
+                parent_idx = right_idx
+                sample -= node_value
+
+            left_idx = parent_idx * 2 + 1
+            right_idx = left_idx + 1
+
+        return parent_idx
+
+    def Total(self):
+        return self._tree[0]
 
     def Add(self, priority, data):
-        tree_idx = self.data_pointer + self.capacity - 1
+        idx = self._data_pointer + self._capacity - 1
 
-        self.data[self.data_pointer] = data
+        self._data[self._data_pointer] = data
+        self.Update(idx, priority)
 
-        self.Update(tree_idx, priority)
+        self._data_pointer += 1
+        # if we are past the capacity begin overwriting
+        if self._data_pointer >= self._capacity:
+            self._data_pointer = 0
+    
+        if self._entries < self._capacity:
+            self._entries += 1
 
-        self.data_pointer += 1
+    def Update(self, idx, priority):
+        change = priority - self._tree[idx]
+        self._tree[idx] = priority
 
-        # overwrite old data
-        if self.data_pointer >= self.capacity:
-            self.data_pointer = 0
+        # propogate
+        while idx != 0:
+            idx = (idx - 1) // 2
+            self._tree[idx] += change
 
-    def Update(self, tree_idx, priority):
-        change = priority - self.tree[tree_idx]
-        self.tree[tree_idx] = priority
+    def GetLeaf(self, sample):
+        idx = self.Retrieve(0, sample)
+        data_idx = idx - self._capacity + 1
 
-        while tree_idx != 0:
-            tree_idx = (tree_idx - 1) // 2
-            self.tree[tree_idx] += change
-
-    def GetLeaf(self, p_value):
-        parent_idx = 0 
-
-        while True:
-            left_child_idx = 2 * parent_idx + 1
-            right_child_idx = left_child_idx + 1
-
-            if left_child_idx >= len(self.tree):
-                leaf_idx = parent_idx
-                break
-            else:
-                if p_value <= self.tree[left_child_idx]:
-                    parent_idx = left_child_idx
-                else:
-                    v -= self.tree[left_child_idx]
-                    parent_idx = right_child_idx
-            
-        data_index = leaf_idx - self.capacity + 1
-        return leaf_idx, self.tree[leaf_idx], self.data[data_index]
-
-    @property
-    def TotalPriority(self):
-        return self.tree[0]
+        return (idx, self._tree[idx], self._data[data_idx])

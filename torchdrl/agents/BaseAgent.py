@@ -4,7 +4,8 @@ import math
 
 from ..data_structures import Shared
 
-from ..data_structures.UniformExperienceReplay import UniformExperienceReplay as UER
+from ..data_structures.UniformExperienceReplay import UniformExperienceReplay
+from ..data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
 from ..representations.Plotter import Plotter
 
 class BaseAgent(object):
@@ -22,7 +23,7 @@ class BaseAgent(object):
         self._input_shape = self._env.observation_space.shape
 
         # TODO generalize how to choose memory.
-        self._memory = UER(config['memory_size'])
+        self._memory = PrioritizedExperienceReplay(config['memory_size'])
         self._batch_size = config['batch_size']
         self._warm_up = config['warm_up']
         self._max_steps = config['max_steps']
@@ -37,6 +38,7 @@ class BaseAgent(object):
         self._best_mean_score = float("-inf")
         self._visualize = config["visualize"]
         self._visualize_frequency = config['visualize_frequency'] # how many episodes
+        self._steps = 0
         self._total_steps = 0
             
     def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
@@ -119,15 +121,17 @@ class BaseAgent(object):
         optimizer.step()
 
     def SampleMemoryT(self, batch_size):
-        states_np, actions_np, next_states_np, rewards_np, dones_np = self._memory.Sample(batch_size)
+        states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np = self._memory.Sample(batch_size)
         
         states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
         actions_t = torch.tensor(actions_np, dtype=torch.int64, device=self._device)
         next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)
         rewards_t = torch.tensor(rewards_np, dtype=torch.float32, device=self._device)
-        dones_t = torch.tensor(dones_np, dtype=torch.bool, device=self._device)
+        dones_t = torch.tensor(dones_np, dtype=torch.int64, device=self._device)
+        
+        weights_t = torch.tensor(weights_np, dtype=torch.float32, device=self._device)
 
-        return states_t, actions_t, next_states_t, rewards_t, dones_t
+        return states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t
 
     def UpdateNetwork(self, net, target_net, tau=1.0):
         for target_param, local_param in zip(target_net.parameters(), net.parameters()):

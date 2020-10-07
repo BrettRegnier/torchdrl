@@ -3,6 +3,7 @@ import torch.nn.functional as F
 
 from .BaseNetwork import BaseNetwork
 from .FullyConnectedNetwork import FullyConnectedNetwork
+from .ConvolutionNetwork import ConvolutionNetwork
 from .NoisyLinear import NoisyLinear
 
 # retrieved from https://github.com/higgsfield/RL-Adventure/blob/master/7.rainbow%20dqn.ipynb
@@ -13,9 +14,10 @@ class RainbowNetwork(BaseNetwork):
         self._n_actions = n_actions
 
         # TODO make these into variables
+        # TODO add std as config
         self._vmin = -10
         self._vmax = 10
-        self._num_atoms = 51
+        self._atoms = 51
 
         if type(n_actions) is not int:
             raise AssertionError("n_actions must be of type int")
@@ -26,23 +28,26 @@ class RainbowNetwork(BaseNetwork):
         self.AssertParameter(activations, "activations", str, -1)
         self.AssertParameter(dropouts, "dropouts", float, 0)
 
+        self._convo = ConvolutionNetwork(input_shape, convo['filters'], convo['kernels'], convo['strides'], convo['paddings'], convo['activations'], convo['pools'], convo['flatten'])
+        in_features = self._convo.OutputSize()
+
         self._net = nn.Sequential(
-            nn.Linear(n_actions, 1024),
+            nn.Linear(*in_features, 1024),
             nn.ReLU(),
-            nn.Linear(n_actions, 1024),
+            nn.Linear(1024, 1024),
             nn.ReLU(),
         )
 
         self._noisy_value = nn.Sequential(
             NoisyLinear(1024, 1024),
             nn.ReLU(),
-            NoisyLinear(1024, self._num_atoms)
+            NoisyLinear(1024, self._atoms)
         )
 
         self._noisy_advantage = nn.Sequential(
             NoisyLinear(1024, 1024),
             nn.ReLU(),
-            NoisyLinear(1024, self._num_atoms * self._n_actions)
+            NoisyLinear(1024, self._atoms * self._n_actions)
         )
 
 
@@ -62,21 +67,24 @@ class RainbowNetwork(BaseNetwork):
         #     nn.Linear(512, 1)
         # )
         
-    def forward(self, state):
-        batch_size = x.size(0)
-
+    def forward(self, state, log=False):
+        x = self._convo(state)
         x = self._net(x)
 
         val = self._noisy_value(x)
         adv = self._noisy_advantage(x)
 
-        val = val.view(batch_size, 1, self._num_atoms)
-        adv = adv.view(batch_size, self._n_actions, self._num_atoms)
+        val = val.view(-1, 1, self._atoms)
+        adv = adv.view(-1, self._n_actions, self._atoms)
 
-        x = val + adv - adv.mean(1, keepdim=True)
-        x = F.softmax(x.view(-1, self._num_atoms)).view(-1, self._n_actions, self._num_atoms)
-
-        return x 
+        q = val + adv - adv.mean(1, keepdim=True)
+        
+        if log:
+            q = F.log_softmax(q, dim=2)
+        else:
+            q = F.softmax(q, dim=2)
+        
+        return q
 
     def ResetNoise(self):
         for net in self._noisy_value:

@@ -1,10 +1,8 @@
 import collections
 import numpy as np
 
-
 Experience = collections.namedtuple('experience', field_names=[
                                     'state', 'action', 'next_state', 'reward', 'done'])
-
 class UniformExperienceReplay:
     def __init__(self, capacity):
         self.buffer = collections.deque(maxlen=capacity)
@@ -17,15 +15,16 @@ class UniformExperienceReplay:
         self.buffer.append(experience)
 
     def Sample(self, batch_size):
-        indices = np.random.choice(
+        indices_np = np.random.choice(
             len(self.buffer), batch_size, replace=False)
+
 
         states = []
         actions = []
-        rewards = []
         next_states = []
+        rewards = []
         dones = []
-        for idx in indices:
+        for idx in indices_np:
             states.append(self.buffer[idx].state)
             actions.append(self.buffer[idx].action)
             next_states.append(self.buffer[idx].next_state)
@@ -38,7 +37,13 @@ class UniformExperienceReplay:
         rewards_np = np.array(rewards)
         dones_np = np.array(dones)
 
-        return states_np, actions_np, next_states_np, rewards_np, dones_np
+        weights_np = np.ones(batch_size)
+
+        return states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np
+    
+    # just do nothing because PER requires this and having checks is more cpu than running nothing.
+    def BatchUpdate(self, tree_idx, errors):
+        pass
 
 # alternative
 import numpy as np
