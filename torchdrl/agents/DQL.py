@@ -134,10 +134,11 @@ class DQL(BaseAgent):
         self._memory.BatchUpdate(indices_np, errors.detach().cpu().numpy())
 
     def Save(self, filepath="checkpoints"):
+        filepath += "/" + self._config['name']
         if not os.path.exists(filepath):
             os.mkdir(filepath)
 
-        filepath = filepath + "/" + self._config['name'] + "/episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + "_dql.pt"
+        filepath += "/episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + "_dql.pt"
 
         torch.save({
             'net_state_dict': self._net.state_dict(),
