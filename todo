@@ -1,8 +1,6 @@
 -- unit testing
 
--Minesweeper:
-    -Can I make a wrapper that handles bigger games, such that once it has been trained
-        to play easier ones (5x5) then have it play bigger games.
+-- remove all points in the plotter?
 
 -Add in ability to clear logs and save current graph.
 

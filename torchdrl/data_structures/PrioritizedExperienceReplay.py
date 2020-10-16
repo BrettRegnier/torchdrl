@@ -1,12 +1,14 @@
 import collections
 import numpy as np
 
+from .ExperienceReplay import ExperienceReplay
 from .SumTree import SumTree
 
 Experience = collections.namedtuple('experience', field_names=[
                                     'state', 'action', 'next_state', 'reward', 'done'])
-class PrioritizedExperienceReplay:
+class PrioritizedExperienceReplay(ExperienceReplay):
     def __init__(self, capacity):
+        super(PrioritizedExperienceReplay, self).__init__()
         self._sum_tree = SumTree(capacity)
 
         # avoid - hyperparameter to avoid some experiences that have 0 probabilty
@@ -19,16 +21,26 @@ class PrioritizedExperienceReplay:
 
         self._absolute_error_upper = 1 
 
-    def Append(self, state, action, next_state, reward, done):
+    def BatchAppend(self, states, actions, next_states, rewards, dones, priorities, batch_size):
+        for i in range(batch_size):
+            self.Append(states[i], actions[i], next_states[i], rewards[i], dones[i], priorities[i])
+
+    def Append(self, state, action, next_state, reward, done, priority=0):
+        self._ready = False
         experience = Experience(state, action, next_state, reward, done)
-        max_priority = np.max(self._sum_tree._tree[-self._sum_tree._capacity:])
 
-        if max_priority == 0:
-            max_priority = self._absolute_error_upper
-
-        self._sum_tree.Add(max_priority, experience)
+        if priority == 0:
+            max_priority = np.max(self._sum_tree._tree[-self._sum_tree._capacity:])
+            if max_priority == 0:
+                max_priority = self._absolute_error_upper
+            
+            priority = max_priority
+            
+        self._sum_tree.Add(priority, experience)
+        self._ready = True
 
     def Sample(self, batch_size):
+        self._ready = False
         indices = []
         priorities = []
 
@@ -48,6 +60,9 @@ class PrioritizedExperienceReplay:
             value = np.random.uniform(a, b)
 
             idx, priority, data = self._sum_tree.GetLeaf(value)
+
+            if type(data) == int:
+                print("data is int for some reason")
 
             priorities.append(priority)
             indices.append(idx)
@@ -74,16 +89,20 @@ class PrioritizedExperienceReplay:
 
         # update after
         self._beta = np.min([1.0, self._beta + self._beta_inc])
+        
+        self._ready = True
 
         return states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np
 
     def BatchUpdate(self, tree_idx, errors):
+        self._ready = False
         abs_errors = abs(errors + self._epsilon)
         clipped_errors = np.minimum(abs_errors, self._absolute_error_upper)
         priorities = np.power(clipped_errors, self._alpha)
 
         for ti, p in zip(tree_idx, priorities):
             self._sum_tree.Update(ti, p)
+        self._ready = True
 
     def _GetPriority(self, error):
         return (np.abs(error) + self._epsilon) ** self._alpha

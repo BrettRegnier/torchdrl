@@ -44,7 +44,7 @@ class Plotter:
             plt.clf()
             plt.xlabel("Episode") #TODO parameter
             for label in self._figures[figure]:
-                plt.plot(self._figures[figure][label]['x'], self._figures[figure][label]['y'], self._figures[figure][label]['colour'], label=label)
+                plt.plot(self._figures[figure][label]['x'], self._figures[figure][label]['y'], color=self._figures[figure][label]['colour'], label=label)
             plt.legend(loc="upper left")
 
         plt.pause(0.05)		

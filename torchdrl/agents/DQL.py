@@ -21,6 +21,7 @@ class DQL(BaseAgent):
         self._gamma = self._hyperparameters['gamma']
 
         self._tau = self._hyperparameters['tau']
+        self._target_update_steps = 0 
         self._target_update_frequency = self._hyperparameters['target_update']
 
 
@@ -57,10 +58,12 @@ class DQL(BaseAgent):
                 
             next_state, reward, done, info = self._env.step(action)
 
-            # if not (steps == 0 and done):
-            self._memory.Append(state, action, next_state, reward, done)
-
-            self.Learn()
+            if self._apex:
+                self._internal_memory.Append(state, action, next_state, reward, done)
+                self.ApexSendMemories()
+            else:
+                self._memory.Append(state, action, next_state, reward, done)
+                self.Learn()
 
             # update epsilon
             self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
@@ -92,46 +95,37 @@ class DQL(BaseAgent):
     def Learn(self):
         states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t = self.SampleMemoryT(self._batch_size)
 
-        batch_indices = np.arange(self._batch_size, dtype=np.int64)
-        q_values = self._net(states_t)[batch_indices, actions_t]
 
-        next_q_values = self._target_net(next_states_t)
-        next_actions = self._net(next_states_t).max(dim=1)[1]
-        next_action_qs = next_q_values[batch_indices, next_actions]
-        next_action_qs[dones_t] = 0.0
-
-        q_target = rewards_t + self._gamma * next_action_qs
+        errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._batch_size)
+        loss = torch.mean(errors * weights_t)
 
         self._net_optimizer.zero_grad()
-
-        # l1 smooth
-        errors = torch.empty(self._batch_size, device=self._device)
-        for i, values in enumerate(zip(q_target, q_values)):
-            x, y = values
-            if torch.abs(x - y) < 1:
-                errors[i] = (0.5 * ((x - y) ** 2))
-            else:
-                errors[i] = (torch.abs(x - y) - 0.5)
-            errors[i] = errors[i] * weights_t[i]
-        
-        loss = (torch.sum(errors) / self._batch_size).mean()
-        # print(loss);
-
-        # loss = (((q_target - q_values) ** 2.0) * weights_t).mean()
-        # loss = F.smooth_l1_loss(q_values, q_target)
-        
         loss.backward()
-
-        # print(loss);exit()
         self._net_optimizer.step()
 
         # soft update target 
-        if self._total_steps % self._target_update_frequency == 0:
+        if self._target_update_steps % self._target_update_frequency == 0:
             self.UpdateNetwork(self._net, self._target_net, self._tau)
+            self._target_update_steps = 0
+
+        self._target_update_steps += 1
 
         # errors = loss.detach().cpu().numpy()
         # print(errors); exit();
         self._memory.BatchUpdate(indices_np, errors.detach().cpu().numpy())
+        
+    def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
+        q_values = self._net(states_t).gather(1, actions_t.unsqueeze(-1)).squeeze(-1)
+
+        with torch.no_grad():
+            next_state_values = self._target_net(next_states_t).max(dim=1)[0]
+            next_state_values[dones_t] = 0.0
+            next_state_values = next_state_values.detach()
+
+        q_target = rewards_t + self._gamma * next_state_values
+        
+        errors = F.smooth_l1_loss(q_values, q_target, reduction="none")
+        return errors
 
     def Save(self, filepath="checkpoints"):
         filepath += "/" + self._config['name']

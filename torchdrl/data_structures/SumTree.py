@@ -22,7 +22,7 @@ class SumTree:
         left_idx = parent_idx * 2 + 1
         right_idx = left_idx + 1
 
-        while not left_idx >= self._tree_capacity:
+        while left_idx < self._tree_capacity:
             node_value = self._tree[left_idx]
             if sample <= node_value:
                 parent_idx = left_idx
@@ -31,7 +31,7 @@ class SumTree:
                 sample -= node_value
 
             left_idx = parent_idx * 2 + 1
-            right_idx = left_idx + 1
+            right_idx = left_idx + 1        
 
         return parent_idx
 
