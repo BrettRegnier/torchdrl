@@ -115,16 +115,17 @@ class DQL(BaseAgent):
         self._memory.BatchUpdate(indices_np, errors.detach().cpu().numpy())
         
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
-        q_values = self._net(states_t).gather(1, actions_t.unsqueeze(-1)).squeeze(-1)
+        q_values = self._net(states_t).gather(1, actions_t)
 
         with torch.no_grad():
-            next_state_values = self._target_net(next_states_t).max(dim=1)[0]
+            next_state_values = self._target_net(next_states_t)
+            next_state_values = next_state_values.gather(1, self._net(next_states_t).argmax(dim=1, keepdim=True))
             next_state_values[dones_t] = 0.0
             next_state_values = next_state_values.detach()
 
         q_target = rewards_t + self._gamma * next_state_values
         
-        errors = F.smooth_l1_loss(q_values, q_target, reduction="none")
+        errors = F.smooth_l1_loss(q_values, q_target, reduction='none')
         return errors
 
     def Save(self, filepath="checkpoints"):

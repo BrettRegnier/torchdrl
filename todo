@@ -1,7 +1,10 @@
--- unit testing
+-- Make GPU based PrioritizedExperienceReplay
+
 
 -- remove all points in the plotter?
 
 -Add in ability to clear logs and save current graph.
 
 -Clean up creating neural networks more, so error checking is done from an base class.
+
+-- unit testing

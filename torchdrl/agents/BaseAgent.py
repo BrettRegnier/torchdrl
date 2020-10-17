@@ -153,10 +153,10 @@ class BaseAgent(object):
 
     def ConvertNPMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np):
         states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
-        actions_t = torch.tensor(actions_np, dtype=torch.int64, device=self._device)
+        actions_t = torch.tensor(actions_np.reshape(-1, 1), dtype=torch.int64, device=self._device)
         next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)
-        rewards_t = torch.tensor(rewards_np, dtype=torch.float32, device=self._device)
-        dones_t = torch.tensor(dones_np, dtype=torch.int64, device=self._device)
+        rewards_t = torch.tensor(rewards_np.reshape(-1, 1), dtype=torch.float32, device=self._device)
+        dones_t = torch.tensor(dones_np.reshape(-1, 1), dtype=torch.int64, device=self._device)
         weights_t = torch.tensor(weights_np, dtype=torch.float32, device=self._device)
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t
@@ -169,8 +169,8 @@ class BaseAgent(object):
         if len(self._internal_memory) > self._apex_mini_batch:
             states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np = self._internal_memory.Pop(self._apex_mini_batch)
             states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
-            # errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._apex_mini_batch)
-            errors = [0 for _ in range(self._apex_mini_batch)]
+            errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._apex_mini_batch)
+            # errors = [0 for _ in range(self._apex_mini_batch)]
 
             self._memory.BatchAppend(states_np, actions_np, next_states_np, rewards_np, dones_np, errors, self._apex_mini_batch)
 
