@@ -61,9 +61,6 @@ class PrioritizedExperienceReplay(ExperienceReplay):
 
             idx, priority, data = self._sum_tree.GetLeaf(value)
 
-            if type(data) == int:
-                print("data is int for some reason")
-
             priorities.append(priority)
             indices.append(idx)
 

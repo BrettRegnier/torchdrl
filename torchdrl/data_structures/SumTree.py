@@ -9,10 +9,10 @@ class SumTree:
         self._tree_capacity = 2 * self._capacity - 1
 
         # total nodes 
-        self._tree = np.zeros(self._tree_capacity)
+        self._tree = np.zeros(capacity)
 
         # data is stored on the leaf nodes
-        self._data = np.zeros(capacity, dtype=object)
+        self._data = np.zeros(self._tree_capacity, dtype=object)
         
         self._data_pointer = 0
         self._entries = 0
@@ -22,7 +22,7 @@ class SumTree:
         left_idx = parent_idx * 2 + 1
         right_idx = left_idx + 1
 
-        while left_idx < self._tree_capacity:
+        while left_idx < self._capacity:
             node_value = self._tree[left_idx]
             if sample <= node_value:
                 parent_idx = left_idx
