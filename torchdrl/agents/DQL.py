@@ -24,6 +24,7 @@ class DQL(BaseAgent):
         self._target_update_steps = 0 
         self._target_update_frequency = self._hyperparameters['target_update']
 
+        self._batch_size = self._hyperparameters['batch_size']
 
         fcc = self._hyperparameters['fc']
         self._net = FullyConnectedNetwork(self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)

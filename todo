@@ -8,3 +8,5 @@
 -Clean up creating neural networks more, so error checking is done from an base class.
 
 -- unit testing
+
+-- TODO compress all different "DQN" upgrades into the DQN file with configs

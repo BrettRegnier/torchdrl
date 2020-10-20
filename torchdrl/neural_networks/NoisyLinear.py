@@ -33,8 +33,8 @@ class NoisyLinear(nn.Module):
         bias_epsilon = self._bias_epsilon
 
         if self.training:
-            weight = self._weight_mu + self._weight_sigma.mul(weight_epsilon)
-            bias = self._bias_mu + self._bias_sigma.mul(bias_epsilon)
+            weight = self._weight_mu + self._weight_sigma * weight_epsilon
+            bias = self._bias_mu + self._bias_sigma * bias_epsilon
         else:
             weight = self._weight_mu
             bias = self._bias_mu

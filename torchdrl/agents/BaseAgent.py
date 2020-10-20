@@ -14,7 +14,6 @@ class BaseAgent(object):
         self._hyperparameters = config['hyperparameters']
 
         self._name = config['name']
-
         self._env = config['env']
         self._device = config['device']
         self._seed = config['seed']
@@ -23,26 +22,8 @@ class BaseAgent(object):
         self._action_type = "DISCRETE" if self._env.action_space.dtype == np.int64 else "CONTINUOUS"
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
         self._input_shape = self._env.observation_space.shape
-
-        self._apex = config['apex']
-        if self._apex:
-            if 'memory' not in config:
-                raise AssertionError("a shared memory needs to be provided for apex learning")
-            else:
-                self._memory = config['memory']
-                self._apex_mini_batch = 64 # TODO parameter
-                self._internal_memory = UniformExperienceReplay(self._apex_mini_batch * 4, self._input_shape)
-        else:
-            if config['memory_type'] == "PER":
-                self._memory = PrioritizedExperienceReplay(config['memory_size'])
-            else:
-                self._memory = UniformExperienceReplay(config['memory_size'], self._input_shape)
-
-
         self._checkpoint_frequency = config['checkpoint_frequency']
 
-        self._batch_size = config['batch_size']
-        self._warm_up = config['warm_up']
         self._max_steps = config['max_steps']        
         self._reward_goal = config["reward_goal"]
         self._reward_window = config["reward_window"] # how much to average the score over
@@ -147,28 +128,44 @@ class BaseAgent(object):
 
     def SampleMemoryT(self, batch_size):
         states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np = self._memory.Sample(batch_size)
-        states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
+        states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPWeightedMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
         return states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t
         
 
-    def ConvertNPMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np):
+    def GenericConvertNPMemoryToTensor(self, *arrays_np):
+        tensors = ()
+
+        for array_np in arrays_np:
+            x = (torch.tensor(array_np, device=self._device),)
+            tensors = tensors + (torch.tensor(array_np, device=self._device),)
+        return tensors
+
+    def ConvertNPMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np):
         states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
-        actions_t = torch.tensor(actions_np.reshape(-1, 1), dtype=torch.int64, device=self._device)
+        actions_t = torch.tensor(actions_np, dtype=torch.int64, device=self._device)
         next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)
         rewards_t = torch.tensor(rewards_np.reshape(-1, 1), dtype=torch.float32, device=self._device)
         dones_t = torch.tensor(dones_np.reshape(-1, 1), dtype=torch.int64, device=self._device)
-        weights_t = torch.tensor(weights_np, dtype=torch.float32, device=self._device)
 
+        return states_t, actions_t, next_states_t, rewards_t, dones_t
+
+    def ConvertNPWeightedMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np):
+        weights_t = torch.tensor(weights_np, dtype=torch.float32, device=self._device)
+        states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np)
         return states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t
 
     def UpdateNetwork(self, from_net, to_net, tau=1.0):
-        for from_param, to_param in zip(from_net.parameters(), to_net.parameters()):
-            to_param.data.copy_(tau*from_param.data + (1.0-tau) * to_param.data)
+        if tau == 1.0:
+            pass
+        else:
+            for from_param, to_param in zip(from_net.parameters(), to_net.parameters()):
+                to_param.data.copy_(tau*from_param.data + (1.0-tau) * to_param.data)
+        
 
     def ApexSendMemories(self):
         if len(self._internal_memory) > self._apex_mini_batch:
             states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np = self._internal_memory.Pop(self._apex_mini_batch)
-            states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
+            states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPWeightedMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
             errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._apex_mini_batch)
             # errors = [0 for _ in range(self._apex_mini_batch)]
 

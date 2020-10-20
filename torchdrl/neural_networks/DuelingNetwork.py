@@ -18,29 +18,35 @@ class DuelingNetwork(BaseNetwork):
         self.AssertParameter(activations, "activations", str, -1)
         self.AssertParameter(dropouts, "dropouts", float, 0)
 
-        last_layer = (hidden_layers[-1:])[0]
+        # scrape one layer off for the advantage and value layers
+        prev_layer = hidden_layers[-2:][0]
+        last_layer = hidden_layers[-1:][0]
+        hidden_layers = hidden_layers[-1:]
+
         last_activation = (activations[-1:])[0]
+        activations= activations[-1:]
+
         self._net = FullyConnectedNetwork(input_shape, last_layer, hidden_layers, activations, dropouts, last_activation, convo)
 
         self._adv = nn.Sequential(
-            nn.Linear(last_layer, 512),
+            nn.Linear(prev_layer, last_layer),
             nn.ReLU(),
-            nn.Linear(512, n_actions)
+            nn.Linear(last_layer, n_actions)
         )
         self._val = nn.Sequential(
-            nn.Linear(last_layer, 512),
+            nn.Linear(prev_layer, last_layer),
             nn.ReLU(),
-            nn.Linear(512, 1)
+            nn.Linear(last_layer, 1)
         )
         
     def forward(self, state):
         x = self._net(state)
 
+        val = self._val(x)
         adv = self._adv(x)
-        val = self._val(x).expand(x.size(0), self._n_actions)
 
-        y = val + adv - adv.mean()
+        q = val + adv - adv.mean(dim=-1, keepdim=True)
 
-        return y
+        return q
 
 

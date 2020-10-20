@@ -28,14 +28,13 @@ class FullyConnectedNetwork(BaseNetwork):
             in_features = self._convo.OutputSize()
 
         net = []
-        net.append(nn.Linear(*in_features, hidden_layers[0]))
-        if len(activations) > 0 and activations[0] is not None:
-            net.append(self.GetActivation(activations[0]))
-        if len(dropouts) > 0 and dropouts[0] is not None:
-            net.append(nn.Dropout(dropouts[0]))
-
-        i = 0
         if num_hidden_layers > 1:
+            net.append(nn.Linear(*in_features, hidden_layers[0]))
+            if len(activations) > 0 and activations[0] is not None:
+                net.append(self.GetActivation(activations[0]))
+            if len(dropouts) > 0 and dropouts[0] is not None:
+                net.append(nn.Dropout(dropouts[0]))
+
             for i in range(1, num_hidden_layers):
                 net.append(nn.Linear(hidden_layers[i-1], hidden_layers[i]))
                 if len(activations) > i and activations[i] is not None:
@@ -43,9 +42,13 @@ class FullyConnectedNetwork(BaseNetwork):
                 if len(dropouts) > i and dropouts[i] is not None:
                         net.append(nn.Dropout(dropouts[i]))
 
-        net.append(nn.Linear(hidden_layers[i], n_actions))
-        if final_activation is not None:
-            net.append(self.GetActivation(final_activation))
+            net.append(nn.Linear(hidden_layers[i], n_actions))
+            if final_activation is not None:
+                net.append(self.GetActivation(final_activation))
+        else:
+            net.append(nn.Linear(*in_features, n_actions))
+            if len(activations) > 0 and activations[0] is not None:
+                net.append(self.GetActivation(activations[0]))
             
         # initialize weights
         for layer in net:

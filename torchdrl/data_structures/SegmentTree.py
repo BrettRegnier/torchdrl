@@ -13,6 +13,9 @@ class SegmentTree:
 
         self._data_pointer = 0
         self._entries = 0
+
+    def Total(self):
+        return self._tree[0]
     
     def Add(self, priority, data):
         tree_pointer = (self._data_pointer + self._capacity) - 1
@@ -25,17 +28,30 @@ class SegmentTree:
             self._entries += 1
     
     def Update(self, idx, priority):
-        delta = priority - self._tree[idx]
         self._tree[idx] = priority
         
         while idx != 0:
             idx = (idx - 1) // 2
-            self._tree[idx] += delta
+            self._tree[idx] = self._tree[2*idx+1] + self._tree[2*idx+2]
     
     def Retrieve(self, idx, sample):
-        pass
+        num_leafs = self._capacity - 1
+        while idx < num_leafs:
+            left = idx * 2 + 1 
+            right = left + 1
+            node_value = self._tree[left]
+
+            if node_value > sample:
+                idx = left
+            else:
+                idx = right
+                sample -= node_value
+
+        return idx
     
     def GetLeaf(self, sample):
-        pass
-    
+        idx = self.Retrieve(0, sample)
+        data_idx = idx - (self._capacity - 1)
+
+        return (idx, self._tree[idx], self._data[data_idx])
     

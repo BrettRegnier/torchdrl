@@ -91,15 +91,9 @@ class PrioritizedExperienceReplay(ExperienceReplay):
 
         return states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np
 
-    def BatchUpdate(self, tree_idx, errors):
-        self._ready = False
-        abs_errors = abs(errors + self._epsilon)
-        clipped_errors = np.minimum(abs_errors, self._absolute_error_upper)
-        priorities = np.power(clipped_errors, self._alpha)
-
-        for ti, p in zip(tree_idx, priorities):
-            self._sum_tree.Update(ti, p)
-        self._ready = True
+    def BatchUpdate(self, indices, errors):
+        for idx, error in zip(indices, errors):
+            self._sum_tree.Update(idx, error ** self._alpha)
 
     def _GetPriority(self, error):
         return (np.abs(error) + self._epsilon) ** self._alpha
