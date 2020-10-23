@@ -166,10 +166,20 @@ class BaseAgent(object):
         if len(self._internal_memory) > self._apex_mini_batch:
             states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np = self._internal_memory.Pop(self._apex_mini_batch)
             states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPWeightedMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
-            errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._apex_mini_batch)
-            # errors = [0 for _ in range(self._apex_mini_batch)]
+            errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._apex_mini_batch, self._gamma)
 
-            self._memory.BatchAppend(states_np, actions_np, next_states_np, rewards_np, dones_np, errors, self._apex_mini_batch)
+            self._memory.BatchAppend(states_np, actions_np, next_states_np, rewards_np, dones_np, errors.cpu().detach().numpy(), self._apex_mini_batch)
+
+    def LearnerAddMemories(self, states_np, actions_np, next_states_np, rewards_np, dones_np, errors, batch_size):
+        if self._n_steps > 1:
+            for i in range(batch_size):
+                transition = (states_np[i], actions_np[i], next_states_np[i], rewards_np[i], dones_np[i])
+                transition = self._memory_n_step.Append(*transition)
+                
+                if transition:
+                    self._memory.Append(*transition)
+        else:
+            self._memory.BatchAppend(states_np, actions_np, next_states_np, rewards_np, dones_np, errors, batch_size)
 
 
             

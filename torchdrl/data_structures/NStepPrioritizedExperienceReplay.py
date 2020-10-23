@@ -7,11 +7,12 @@ from .ExperienceReplay import ExperienceReplay
 from .SegmentTree import SegmentTree
 
 
+# TODO make base class experience replay
 Experience = collections.namedtuple('experience', field_names=[
                                     'state', 'action', 'next_state', 'reward', 'done'])
-class NStepPrioritizedExperienceReplay(ExperienceReplay):
+class NStepPrioritizedExperienceReplay:
     def __init__(self, capacity, input_shape, alpha, beta, priority_epsilon, n_step=1, gamma=0.99):
-        super(NStepPrioritizedExperienceReplay, self).__init__()
+        # super(NStepPrioritizedExperienceReplay, self).__init__()
         self._capacity = capacity
         self._input_shape = input_shape
         self._n_step = n_step
@@ -29,7 +30,7 @@ class NStepPrioritizedExperienceReplay(ExperienceReplay):
         self._alpha = alpha
         # sampling, from initial value increasing to 1
         self._beta = beta
-        self._beta_inc = 0.001
+        self._beta_inc = 0.00001 # TODO maybe parameter?
 
         self._max_priority = 1 
         self._min_priority = math.inf
@@ -169,10 +170,10 @@ class NStepPrioritizedExperienceReplay(ExperienceReplay):
 
     def BatchUpdate(self, indices, errors):
         for idx, error in zip(indices, errors):
-            self._sum_tree.Update(idx, error ** self._alpha)
+            self._sum_tree.Update(idx, self._GetPriority(error))
 
     def _GetPriority(self, error):
-        return (np.abs(error) + self._epsilon) ** self._alpha
+        return (error + self._priority_epsilon) ** self._alpha
 
     def _GetNStepInfo(self, n_step_buffer, gamma):
         state, action, reward, next_state, done = n_step_buffer[-1][-5:]

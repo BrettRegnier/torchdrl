@@ -2,9 +2,9 @@ import numpy as np
 
 from .ExperienceReplay import ExperienceReplay
 
-class UniformExperienceReplay(ExperienceReplay):
+class UniformExperienceReplay:
     def __init__(self, capacity, input_shape):
-        super(UniformExperienceReplay, self).__init__()
+        # super(UniformExperienceReplay, self).__init__()
         self._states = np.zeros([capacity, *input_shape], dtype=np.float32)
         self._actions = np.zeros(capacity, dtype=np.float32)
         self._next_states = np.zeros([capacity, *input_shape], dtype=np.float32)

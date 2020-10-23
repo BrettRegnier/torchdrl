@@ -1,5 +1,9 @@
--- Make GPU based PrioritizedExperienceReplay
+-- apex rainbow
 
+-- clean up the all of the memories, such that they are using a base class 
+-- for main storage
+    -- the prioritized experience replay should only use the trees for the priority
+    -- all the data should be stored in numpy array outside of there.
 
 -- remove all points in the plotter?
 

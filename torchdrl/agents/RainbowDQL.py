@@ -14,8 +14,7 @@ from ..neural_networks.NoisyDuelingCategoricalNetwork import NoisyDuelingCategor
 from ..representations.Plotter import Plotter
 
 from ..data_structures.NStepPrioritizedExperienceReplay import NStepPrioritizedExperienceReplay
-
-# Followed guide from https://github.com/Curt-Park/rainbow-is-all-you-need
+from ..data_structures.UniformExperienceReplay import UniformExperienceReplay
 
 # DQN
 # Double DQN
@@ -26,7 +25,7 @@ from ..data_structures.NStepPrioritizedExperienceReplay import NStepPrioritizedE
 # N step
 
 class RainbowDQL(BaseAgent):
-    def __init__(self, config):
+    def __init__(self, config, memory=None):
         super(RainbowDQL, self).__init__(config)
         self._gamma = self._hyperparameters['gamma']
 
@@ -49,12 +48,17 @@ class RainbowDQL(BaseAgent):
         memory_type = self._hyperparameters['memory_type']
         memory_size = self._hyperparameters['memory_size']
         if self._apex:
-            if 'memory' not in config:
+            if memory == None:
                 raise AssertionError("a shared memory needs to be provided for apex learning")
             else:
-                self._memory = config['memory']
+                self._memory = memory
+                # TODO fix all this, it is janky, I need to make 
+                # specific Ape-X version...
+
                 self._apex_mini_batch = 64 # TODO parameter
                 self._internal_memory = UniformExperienceReplay(self._apex_mini_batch * 4, self._input_shape)
+                if self._n_steps > 1:
+                    self._memory_n_step = NStepPrioritizedExperienceReplay(memory_size, self._input_shape, self._alpha, self._beta, self._priority_epsilon, self._n_steps, self._gamma)
         else:
             if self._hyperparameters['memory_type'] == "PER":
                 self._memory = NStepPrioritizedExperienceReplay(memory_size, self._input_shape, self._alpha, self._beta, self._priority_epsilon)
@@ -72,10 +76,12 @@ class RainbowDQL(BaseAgent):
 
         # double DQN
         self._target_net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        self._target_net.eval()
+
         self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
 
         self.UpdateNetwork(self._net, self._target_net)
-    
+
     def PlayEpisode(self, evaluate=False):
         done = False
         steps = 0
@@ -89,14 +95,15 @@ class RainbowDQL(BaseAgent):
             next_state, reward, done, info = self._env.step(action)
             transition = (state, action, next_state, reward, done)
 
-            if self._apex:
-                self._internal_memory.Append(state, action, next_state, reward, done)
+
+            if self._n_steps > 1:
+                transition = self._memory_n_step.Append(*transition)
+
+            if self._apex:                
+                if transition:
+                    self._internal_memory.Append(*transition)
                 self.ApexSendMemories()
             else:
-                if self._n_steps > 1:
-                    # Do n_step transition
-                    transition = self._memory_n_step.Append(*transition)
-
                 if transition:
                     self._memory.Append(*transition)
                 
@@ -111,14 +118,14 @@ class RainbowDQL(BaseAgent):
             
         return episode_reward, steps, info
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def Act(self, state):
         # Noisy - No random action by dqn
         state_t = torch.tensor(state, dtype=torch.float32, device=self._device).detach()
         state_t = state_t.unsqueeze(0)
         
         q_values = self._net(state_t)
-        action = torch.argmax(q_values).item()
+        action = q_values.argmax().item()
 
         return action
     
