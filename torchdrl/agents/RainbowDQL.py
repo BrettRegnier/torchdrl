@@ -16,6 +16,7 @@ from ..representations.Plotter import Plotter
 from ..data_structures.NStepPrioritizedExperienceReplay import NStepPrioritizedExperienceReplay
 from ..data_structures.UniformExperienceReplay import UniformExperienceReplay
 
+from ..neural_networks.ConstraintNetwork import ConstraintNetwork
 # DQN
 # Double DQN
 # Dueling DQN
