@@ -40,13 +40,16 @@ class NStepPrioritizedExperienceReplay:
             self.Append(states[i], actions[i], next_states[i], rewards[i], dones[i], priorities[i] + self._priority_epsilon)
 
     def Append(self, state, action, next_state, reward, done, priority=0):
-        experience = Experience(state, action, next_state, reward, done)
+        # experience = Experience(state, action, next_state, reward, done)
         experience = (state, action, next_state, reward, done)
         self._n_step_buffer.append(experience)
 
         # If step transition is ready
         if len(self._n_step_buffer) >= self._n_step:
-            n_state, n_action, n_reward, n_next_state, n_done, = self._GetNStepInfo(self._n_step_buffer, self._gamma)
+            n_next_state, n_reward, n_done, = self._GetNStepInfo(self._n_step_buffer, self._gamma)
+            n_state, n_action = self._n_step_buffer[0][:2]
+            
+            n_experience = (n_state, n_action, n_next_state, n_reward, n_done)
 
             if priority > self._max_priority:
                 self._max_priority = priority
@@ -57,7 +60,7 @@ class NStepPrioritizedExperienceReplay:
             if priority == 0:
                 priority = self._max_priority ** self._alpha
                 
-            self._sum_tree.Add(priority, experience)
+            self._sum_tree.Add(priority, n_experience)
         else:
             return ()
 
@@ -176,15 +179,15 @@ class NStepPrioritizedExperienceReplay:
         return (error + self._priority_epsilon) ** self._alpha
 
     def _GetNStepInfo(self, n_step_buffer, gamma):
-        state, action, reward, next_state, done = n_step_buffer[-1][-5:]
+        next_state, reward, done = n_step_buffer[-1][-3:]
 
         for transition in reversed(list(n_step_buffer)[:-1]):
-            r, n_s, d = transition[-3:]
+            n_s, r, d = transition[-3:]
 
             reward = r + gamma * reward * (1-d)
             next_state, done = (n_s, d) if d else (next_state, done)
         
-        return state, action, reward, next_state, done
+        return next_state, reward, done
 
     def __len__(self):
         return self._sum_tree._entries

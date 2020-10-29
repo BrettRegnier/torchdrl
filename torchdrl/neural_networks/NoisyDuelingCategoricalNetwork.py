@@ -53,9 +53,7 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
     def DistributionForward(self, state):
         x = self._net(state)
         adv = self._adv(x).view(-1, self._n_actions, self._atom_size)
-        # val = self._val(x).view(-1, 1, self._atom_size)
-        val = self._val(x)
-        val = val.view(-1, 1, self._atom_size)
+        val = self._val(x).view(-1, 1, self._atom_size)
 
         q_atoms = val + adv - adv.mean(dim=1, keepdim=True)
 

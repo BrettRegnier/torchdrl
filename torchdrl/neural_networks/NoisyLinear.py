@@ -2,7 +2,8 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
+
+import numpy as np
 
 from .BaseNetwork import BaseNetwork
 
@@ -29,12 +30,9 @@ class NoisyLinear(nn.Module):
         self.ResetNoise()
 
     def forward(self, x):
-        weight_epsilon = self._weight_epsilon
-        bias_epsilon = self._bias_epsilon
-
         if self.training:
-            weight = self._weight_mu + self._weight_sigma * weight_epsilon
-            bias = self._bias_mu + self._bias_sigma * bias_epsilon
+            weight = self._weight_mu + self._weight_sigma * self._weight_epsilon
+            bias = self._bias_mu + self._bias_sigma * self._bias_epsilon
         else:
             weight = self._weight_mu
             bias = self._bias_mu
@@ -45,10 +43,10 @@ class NoisyLinear(nn.Module):
         mu_range = 1 / math.sqrt(self._in_features)
 
         self._weight_mu.data.uniform_(-mu_range, mu_range)
-        self._weight_sigma.data.fill_(self._std_init / math.sqrt(self._weight_sigma.size(1)))
+        self._weight_sigma.data.fill_(self._std_init / math.sqrt(self._in_features))
 
         self._bias_mu.data.uniform_(-mu_range, mu_range)
-        self._bias_sigma.data.fill_(self._std_init / math.sqrt(self._bias_sigma.size(0)))
+        self._bias_sigma.data.fill_(self._std_init / math.sqrt(self._out_features))
 
     def ResetNoise(self):
         epsilon_in = self._ScaleNoise(self._in_features)
@@ -57,7 +55,8 @@ class NoisyLinear(nn.Module):
         self._weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
         self._bias_epsilon.copy_(epsilon_out)
 
-    def _ScaleNoise(self, size):
-        x = torch.randn(size)
+    @staticmethod
+    def _ScaleNoise(size):
+        x = torch.tensor(np.random.normal(loc=0.0, scale=1.0, size=size), dtype=torch.float32)
         x = x.sign().mul(x.abs().sqrt())
         return x
