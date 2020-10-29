@@ -28,48 +28,14 @@ from ..neural_networks.ConstraintNetwork import ConstraintNetwork
 class RainbowDQL(BaseAgent):
     def __init__(self, config, memory=None):
         super(RainbowDQL, self).__init__(config)
-        self._gamma = self._hyperparameters['gamma']
-
         self._tau = self._hyperparameters['tau']
-        self._target_update_steps = 0 
         self._target_update_frequency = self._hyperparameters['target_update']
+        self._target_update_steps = 0 
 
-        self._n_steps = self._hyperparameters['n_steps']
         self._v_min = self._hyperparameters['v_min']
         self._v_max = self._hyperparameters['v_max']
         self._atom_size = self._hyperparameters['atom_size']
         self._support = torch.linspace(self._v_min, self._v_max, self._atom_size).to(self._device)
-
-        self._alpha = self._hyperparameters['alpha']
-        self._beta = self._hyperparameters['beta']
-        self._priority_epsilon = self._hyperparameters['priority_epsilon']
-
-        self._apex = self._hyperparameters['apex']
-        self._batch_size = self._hyperparameters['batch_size']
-        memory_type = self._hyperparameters['memory_type']
-        memory_size = self._hyperparameters['memory_size']
-        if self._apex:
-            if memory == None:
-                raise AssertionError("a shared memory needs to be provided for apex learning")
-            else:
-                self._memory = memory
-                # TODO fix all this, it is janky, I need to make 
-                # specific Ape-X version...
-
-                self._apex_mini_batch = 64 # TODO parameter
-                self._internal_memory = UniformExperienceReplay(self._apex_mini_batch * 4, self._input_shape)
-                if self._n_steps > 1:
-                    self._memory_n_step = NStepPrioritizedExperienceReplay(memory_size, self._input_shape, self._alpha, self._beta, self._priority_epsilon, self._n_steps, self._gamma)
-        else:
-            if self._hyperparameters['memory_type'] == "PER":
-                self._memory = NStepPrioritizedExperienceReplay(memory_size, self._input_shape, self._alpha, self._beta, self._priority_epsilon)
-                if self._n_steps > 1:
-                    self._memory_n_step = NStepPrioritizedExperienceReplay(memory_size, self._input_shape, self._alpha, self._beta, self._priority_epsilon, self._n_steps, self._gamma)
-            else:
-                self._memory = UniformExperienceReplay(config['memory_size'], self._input_shape)
-                # TODO make uniform experience replay work with rainbow
-                if self._n_steps > 1:
-                    self._memory_n_step = NStepPrioritizedExperienceReplay(self._hyperparameters['memory_size'], self._alpha, self._input_shape, self._n_steps, self._gamma)
 
         fcc = self._hyperparameters['fc']
         # and dueling noisy
@@ -85,11 +51,11 @@ class RainbowDQL(BaseAgent):
 
     def PlayEpisode(self, evaluate=False):
         done = False
-        steps = 0
         episode_reward = 0
+        self._steps = 0
         
         state = self._env.reset()
-        while steps != self._max_steps and not done:
+        while self._steps != self._max_steps and not done:
             # Noisy - No epsilon
             action = self.Act(state)
                 
@@ -100,24 +66,19 @@ class RainbowDQL(BaseAgent):
             if self._n_steps > 1:
                 transition = self._memory_n_step.Append(*transition)
 
-            if self._apex:                
-                if transition:
-                    self._internal_memory.Append(*transition)
-                self.ApexSendMemories()
-            else:
-                if transition:
-                    self._memory.Append(*transition)
-                
-                if len(self._memory) > self._batch_size:
-                    self.Learn()
+            if transition:
+                self._memory.Append(*transition)
+            
+            if len(self._memory) > self._batch_size:
+                self.Learn()
             
             episode_reward += reward
             state = next_state
 
-            steps += 1
+            self._steps += 1
             self._total_steps += 1
             
-        return episode_reward, steps, info
+        return episode_reward, self._steps, info
 
     # @torch.no_grad()
     def Act(self, state):
@@ -143,8 +104,8 @@ class RainbowDQL(BaseAgent):
         # n-step learning with one-step to prevent high-variance
         if self._n_steps > 1:
             gamma = self._gamma ** self._n_steps
-            samples = self._memory_n_step.SampleBatchFromIndices(indices_np)
-            states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(*samples)
+            states_np, actions_np, next_states_np, rewards_np, dones_np = self._memory_n_step.SampleBatchFromIndices(indices_np)
+            states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np)
             errors_n = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._batch_size, gamma)
             errors += errors_n
 
@@ -152,7 +113,7 @@ class RainbowDQL(BaseAgent):
 
         self._net_optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(self._net.parameters(), 10.0)
+        # clip_grad_norm_(self._net.parameters(), 10.0)
         self._net_optimizer.step()
 
         # TODO change if needed
@@ -170,6 +131,8 @@ class RainbowDQL(BaseAgent):
         # Prioritized Experience Replay
         updated_priorities = errors.detach().cpu().numpy()
         self._memory.BatchUpdate(indices_np, updated_priorities)
+
+        return loss
         
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):
         # categorical
@@ -179,7 +142,7 @@ class RainbowDQL(BaseAgent):
             # double dqn
             next_actions = self._net(next_states_t).argmax(1)
             next_dists = self._target_net.DistributionForward(next_states_t)
-            next_dists = next_dists[range(self._batch_size), next_actions]
+            next_dists = next_dists[range(batch_size), next_actions]
 
             # categorical
             t_z = rewards_t + (1 - dones_t) * gamma * self._support
@@ -189,10 +152,10 @@ class RainbowDQL(BaseAgent):
             u = b.ceil().long()
 
             offset = (
-                torch.linspace(0, (self._batch_size - 1) * self._atom_size, self._batch_size)
+                torch.linspace(0, (batch_size - 1) * self._atom_size, batch_size)
                 .long()
                 .unsqueeze(1)
-                .expand(self._batch_size, self._atom_size)
+                .expand(batch_size, self._atom_size)
                 .to(self._device)
             )
 
@@ -205,7 +168,7 @@ class RainbowDQL(BaseAgent):
             )
 
         dist = self._net.DistributionForward(states_t)
-        log_p = torch.log(dist[range(self._batch_size), actions_t])
+        log_p = torch.log(dist[range(batch_size), actions_t])
 
         errors = -(proj_dist * log_p).sum(1)
         return errors

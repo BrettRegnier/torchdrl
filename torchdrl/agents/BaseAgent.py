@@ -4,14 +4,16 @@ import math
 
 from ..data_structures import Shared
 
+from ..data_structures.ExperienceReplay import ExperienceReplay
 from ..data_structures.UniformExperienceReplay import UniformExperienceReplay
 from ..data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
+from ..data_structures.NStepPrioritizedExperienceReplay import NStepPrioritizedExperienceReplay
+from ..data_structures.PER import PER
 from ..representations.Plotter import Plotter
 
 class BaseAgent(object):
     def __init__(self, config):
         self._config = config
-        self._hyperparameters = config['hyperparameters']
 
         self._name = config['name']
         self._env = config['env']
@@ -28,15 +30,43 @@ class BaseAgent(object):
         self._reward_goal = config["reward_goal"]
         self._reward_window = config["reward_window"] # how much to average the score over
         self._episode_score = 0
-        self._episode_scores = []
+        self._episode_scores = [0 for i in range(100)]
         self._episode_mean_score = 0
         self._episode = 0
         self._best_score = float("-inf")
         self._best_mean_score = float("-inf")
         self._visualize = config["visualize"]
         self._visualize_frequency = config['visualize_frequency'] # how many episodes
+
+        # begin defining all shared hyperparamters
+        self._hyperparameters = config['hyperparameters']
+        self._gamma = self._hyperparameters['gamma']
+        self._n_steps = self._hyperparameters['n_steps']
+        self._batch_size = self._hyperparameters['batch_size']
+
+
+        # TODO streamline this from the config and remove the 
+        # TODO memory declaration from the apex version
+        # if this is an Ape-X agent, don't do this
+        # because Ape-X will use a shared memory
+        memory_size = self._hyperparameters['memory_size']
+        if 'apex_parameters' not in self._config:
+            memory_type = self._hyperparameters['memory_type']
+            # memory
+            if memory_type == "PER":
+                alpha = self._hyperparameters['alpha']
+                beta = self._hyperparameters['beta']
+                priority_epsilon = self._hyperparameters['priority_epsilon']
+                self._memory = PER(memory_size, self._input_shape, alpha, beta, priority_epsilon)
+            else:
+                self._memory = UniformExperienceReplay(memory_size, self._input_shape)
+
+        if self._n_steps > 1:
+            self._memory_n_step = ExperienceReplay(memory_size, self._input_shape, self._n_steps, self._gamma)
+
         self._steps = 0
         self._total_steps = 0
+        self._done_training = False
             
     def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
         for episode_info in self.Train(num_episodes, num_steps):
@@ -64,9 +94,8 @@ class BaseAgent(object):
         """
         self._episode = 0
 
-        done_training = False
         mean_score = 0
-        while self._episode < num_episodes and self._total_steps < num_steps and not done_training and not Shared.stop_training:
+        while self._episode < num_episodes and self._total_steps < num_steps and not self._done_training:
             if self._enable_seed:
                 self._env.seed(self._seed)
 
@@ -80,12 +109,12 @@ class BaseAgent(object):
                 self._best_score = episode_score
             if mean_score > self._best_mean_score:
                 self._best_mean_score = mean_score
-            if mean_score > self._reward_goal and self._total_steps > self._warm_up:
-                done_training = True
+            if mean_score > self._reward_goal:
+                self._done_training = True
             
             self._episode += 1
 
-            episode_info = {"episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(self._episode_mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
+            episode_info = {"agent_name": self._name, "episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(self._episode_mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
             episode_info.update(info)
 
             if self._episode % self._checkpoint_frequency == 0:
@@ -161,25 +190,5 @@ class BaseAgent(object):
             for from_param, to_param in zip(from_net.parameters(), to_net.parameters()):
                 to_param.data.copy_(tau*from_param.data + (1.0-tau) * to_param.data)
         
-
-    def ApexSendMemories(self):
-        if len(self._internal_memory) > self._apex_mini_batch:
-            states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np = self._internal_memory.Pop(self._apex_mini_batch)
-            states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPWeightedMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
-            errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._apex_mini_batch, self._gamma)
-
-            self._memory.BatchAppend(states_np, actions_np, next_states_np, rewards_np, dones_np, errors.cpu().detach().numpy(), self._apex_mini_batch)
-
-    def LearnerAddMemories(self, states_np, actions_np, next_states_np, rewards_np, dones_np, errors, batch_size):
-        if self._n_steps > 1:
-            for i in range(batch_size):
-                transition = (states_np[i], actions_np[i], next_states_np[i], rewards_np[i], dones_np[i])
-                transition = self._memory_n_step.Append(*transition)
-                
-                if transition:
-                    self._memory.Append(*transition)
-        else:
-            self._memory.BatchAppend(states_np, actions_np, next_states_np, rewards_np, dones_np, errors, batch_size)
-
 
             
