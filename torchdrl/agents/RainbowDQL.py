@@ -37,6 +37,9 @@ class RainbowDQL(BaseAgent):
         self._atom_size = self._hyperparameters['atom_size']
         self._support = torch.linspace(self._v_min, self._v_max, self._atom_size).to(self._device)
 
+        memory_type = self._hyperparameters['memory_type']
+        memory_size = self._hyperparameters['memory_size']
+
         fcc = self._hyperparameters['fc']
         # and dueling noisy
         self._net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
@@ -174,13 +177,14 @@ class RainbowDQL(BaseAgent):
         return errors
 
     def Save(self, filepath="checkpoints"):
-        filepath += "/" + self._config['name']
+        filepath += "/" + self._name
         if not os.path.exists(filepath):
             os.mkdir(filepath)
 
         filepath += "/episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + "_dql.pt"
 
         torch.save({
+            'name': self._name,
             'net_state_dict': self._net.state_dict(),
             'target_net_state_dict': self._target_net.state_dict(),
             'net_optimizer_state_dict': self._net_optimizer.state_dict(),

@@ -17,7 +17,6 @@ class BaseAgent(object):
 
         self._name = config['name']
         self._env = config['env']
-        self._device = config['device']
         self._seed = config['seed']
         self._enable_seed = config['enable_seed']
 
@@ -51,6 +50,7 @@ class BaseAgent(object):
         # because Ape-X will use a shared memory
         memory_size = self._hyperparameters['memory_size']
         if 'apex_parameters' not in self._config:
+            self._device = config['device']
             memory_type = self._hyperparameters['memory_type']
             # memory
             if memory_type == "PER":
@@ -107,9 +107,9 @@ class BaseAgent(object):
 
             if episode_score > self._best_score:
                 self._best_score = episode_score
-            if mean_score > self._best_mean_score:
-                self._best_mean_score = mean_score
-            if mean_score > self._reward_goal:
+            if self._episode_mean_score > self._best_mean_score:
+                self._best_mean_score = self._episode_mean_score
+            if self._episode_mean_score >= self._reward_goal:
                 self._done_training = True
             
             self._episode += 1
@@ -185,7 +185,7 @@ class BaseAgent(object):
 
     def UpdateNetwork(self, from_net, to_net, tau=1.0):
         if tau == 1.0:
-            pass
+            to_net.load_state_dict(from_net.state_dict())
         else:
             for from_param, to_param in zip(from_net.parameters(), to_net.parameters()):
                 to_param.data.copy_(tau*from_param.data + (1.0-tau) * to_param.data)

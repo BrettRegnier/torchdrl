@@ -33,19 +33,19 @@ class Plotter:
             self.AddPoint(figure, label, point)
     
     def ShowFigure(self, figure, label):
-        plt.figure(figure)
+        plt.figure(figure, constrained_layout=True)
         plt.plot(self._figures[figure][label]['x'], self._figures[figure][label]['y'], self._figures[figure][label]['colour'])
         plt.pause(0.05)		
         plt.show(block=False)
 
     def ShowAll(self):
         for figure in self._figures:
-            plt.figure(figure) 
+            plt.figure(figure, figsize=(12, 10), constrained_layout=True) 
             plt.clf()
             plt.xlabel("Episode") #TODO parameter
             for label in self._figures[figure]:
                 plt.plot(self._figures[figure][label]['x'], self._figures[figure][label]['y'], color=self._figures[figure][label]['colour'], label=label)
-            plt.legend(loc="upper left")
+            plt.legend(bbox_to_anchor=(1.05, 1), borderaxespad=0, fontsize='xx-small')
 
         plt.pause(0.05)		
         plt.show(block=False)

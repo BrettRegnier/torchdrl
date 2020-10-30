@@ -3,6 +3,7 @@ import time
 import random
 import threading
 import itertools
+import copy
 
 import torch
 import torch.nn.functional as F
@@ -31,15 +32,19 @@ from ..neural_networks.ConstraintNetwork import ConstraintNetwork
 
 class ApexRainbowDQLActor(RainbowDQL):
     def __init__(self, config, agent_id):
-        super(ApexRainbowDQLActor, self).__init__(config)
+        # need to set a device first.
         apex_parameters = config['apex_parameters']
+        self._device = apex_parameters['actor_device']
+
+        super(ApexRainbowDQLActor, self).__init__(config)
+        
         self._agent_id = agent_id
-        self._name = "APDActor" + str(agent_id)
+        self._name = "ARDActor" + str(agent_id)
 
         # every n steps
-        self._learner_sync_frequency = apex_parameters['learner_sync_frequency']
         self._sync_steps = 0
 
+        self._learner_sync_frequency = apex_parameters['learner_sync_frequency']
         self._mini_batch_size = apex_parameters['mini_batch_size']
         self._internal_memory = ExperienceReplay(self._mini_batch_size, self._input_shape)
         self._memory = ApexExperieceReplay(self._mini_batch_size, self._input_shape)
@@ -67,20 +72,24 @@ class ApexRainbowDQLActor(RainbowDQL):
                 self._internal_memory.Append(*transition)
             self.PrepareMemories()
             
-            # update the agent
-            self._sync_steps += 1
-            if self._sync_steps % self._learner_sync_frequency == 0:
-                self._request_update = True
-                self._sync_steps = 0
-
-                while self._request_update:
-                    time.sleep(0.0001)
 
             episode_reward += reward
             state = next_state
 
             self._steps += 1
             self._total_steps += 1
+
+            # update the agent
+            self._sync_steps += 1
+            if self._sync_steps % self._learner_sync_frequency == 0:
+                self._request_update = True 
+                self._sync_steps = 0
+        
+            while self._request_update:
+                time.sleep(0.0001)
+
+
+        time.sleep(0.0001)
             
         return episode_reward, self._steps, info
 
@@ -99,6 +108,10 @@ class ApexRainbowDQLActor(RainbowDQL):
 
 class ApexRainbowDQLLearner(RainbowDQL):
     def __init__(self, config):
+        # need to set a device first.
+        apex_parameters = config['apex_parameters']
+        self._device = apex_parameters['learner_device']
+
         super(ApexRainbowDQLLearner, self).__init__(config)
         self._config = config
         self._hyperparameters = self._config['hyperparameters']
@@ -116,7 +129,7 @@ class ApexRainbowDQLLearner(RainbowDQL):
             self._memory = UniformExperienceReplay(memory_size, self._input_shape)
 
         if self._n_steps > 1:
-            self._memory_n_step = ApexExperieceReplay(memory_size, self._input_shape, self._n_steps, self._gamma)
+            self._memory_n_step = PER(memory_size, self._input_shape, alpha, beta, priority_epsilon, self._n_steps, self._gamma)
 
 
 class ApexRainbowDQL:
@@ -127,6 +140,7 @@ class ApexRainbowDQL:
         self._config = config
         self._hyperparameters = self._config['hyperparameters']
         self._apex_parameters = self._config['apex_parameters']
+        self._learner_sync_frequency = self._apex_parameters['learner_sync_frequency']
 
         self._batch_size = self._hyperparameters['batch_size']
 
@@ -167,7 +181,7 @@ class ApexRainbowDQL:
                 actor_idx += 1
             if extra_actors > 0:
                 actor_groups[i].append(self._actors[actor_idx])
-                ex -= 1
+                extra_actors -= 1
                 actor_idx += 1
         
         for group in actor_groups:
@@ -181,6 +195,8 @@ class ApexRainbowDQL:
 
             self._TransferMemories()
 
+            # if self._learns > self._learner_sync_frequency:
+                # self._learns = 0
             for actor in self._actors:
                 self._CopyLearner(actor)
 
@@ -188,12 +204,12 @@ class ApexRainbowDQL:
             # while not self._episode_infos:
 
             time.sleep(0.0001)
-            if self._episode_infos:
+            while self._episode_infos:
                 yield self._episode_infos.pop(0)
 
-    def TrainActors(self, actors):
+    def TrainActors(self, *actors):
         trains = []
-        if isinstance(actors, list):
+        if isinstance(actors, tuple):
             for actor in actors:
                 trains.append(actor.Train())        
             zipped_trains = zip(*trains)
@@ -209,16 +225,14 @@ class ApexRainbowDQL:
         # using chain and zipping the trains when one finishes, all
         # trains will finish automatically.
         self._actor_finished = True
-        print('here')
 
     def TrainLearner(self):
         while not self._actor_finished:
             if len(self._learner._memory) > self._batch_size:
-                # print("learn")
                 self._learner.Learn()
                 # time.sleep(0.0001)
 
-            self._learns += 1
+                self._learns += 1
 
     def _TransferMemories(self):
         for actor in self._actors:
