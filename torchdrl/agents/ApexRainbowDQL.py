@@ -39,7 +39,7 @@ class ApexRainbowDQLActor(RainbowDQL):
         super(ApexRainbowDQLActor, self).__init__(config)
         
         self._agent_id = agent_id
-        self._name = "ARDActor" + str(agent_id)
+        self._name = self._name + "_" + str(agent_id)
 
         # every n steps
         self._sync_steps = 0

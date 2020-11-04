@@ -109,6 +109,8 @@ class BaseAgent(object):
                 self._best_score = episode_score
             if self._episode_mean_score > self._best_mean_score:
                 self._best_mean_score = self._episode_mean_score
+                if self._best_mean_score > 50:
+                    self.Save(self._config['checkpoint_root'])
             if self._episode_mean_score >= self._reward_goal:
                 self._done_training = True
             
@@ -117,8 +119,8 @@ class BaseAgent(object):
             episode_info = {"agent_name": self._name, "episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(self._episode_mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
             episode_info.update(info)
 
-            if self._episode % self._checkpoint_frequency == 0:
-                self.Save(self._config['checkpoint_root'])
+            # if self._episode % self._checkpoint_frequency == 0:
+            #     self.Save(self._config['checkpoint_root'])
 
             yield episode_info
         
