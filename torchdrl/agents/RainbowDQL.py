@@ -176,12 +176,11 @@ class RainbowDQL(BaseAgent):
         errors = -(proj_dist * log_p).sum(1)
         return errors
 
-    def Save(self, filepath="checkpoints"):
-        filepath += "/" + self._name
-        if not os.path.exists(filepath):
-            os.mkdir(filepath)
+    def Save(self, folderpath, filename):
+        super().Save(folderpath, filename)
 
-        filepath += "/episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + "_dql.pt"
+        folderpath += "/" if folderpath[len(folderpath) - 1] != "/" else ""
+        filepath = folderpath + filename
 
         torch.save({
             'name': self._name,

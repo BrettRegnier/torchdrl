@@ -1,6 +1,7 @@
+import os
+import math
 import torch
 import numpy as np
-import math
 
 from ..data_structures import Shared
 
@@ -16,7 +17,7 @@ class BaseAgent(object):
         self._config = config
 
         self._name = config['name']
-        self._env = config['env']
+        self._env = config['env'](**self._config['env_kwargs'])
         self._seed = config['seed']
         self._enable_seed = config['enable_seed']
 
@@ -24,6 +25,7 @@ class BaseAgent(object):
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
         self._input_shape = self._env.observation_space.shape
         self._checkpoint_frequency = config['checkpoint_frequency']
+        self._num_saves = 0
 
         self._max_steps = config['max_steps']        
         self._reward_goal = config["reward_goal"]
@@ -33,6 +35,7 @@ class BaseAgent(object):
         self._episode_mean_score = 0
         self._episode = 0
         self._best_score = float("-inf")
+        self._prev_best_mean_score = float("-inf")
         self._best_mean_score = float("-inf")
         self._visualize = config["visualize"]
         self._visualize_frequency = config['visualize_frequency'] # how many episodes
@@ -109,8 +112,6 @@ class BaseAgent(object):
                 self._best_score = episode_score
             if self._episode_mean_score > self._best_mean_score:
                 self._best_mean_score = self._episode_mean_score
-                if self._best_mean_score > 50:
-                    self.Save(self._config['checkpoint_root'])
             if self._episode_mean_score >= self._reward_goal:
                 self._done_training = True
             
@@ -119,13 +120,13 @@ class BaseAgent(object):
             episode_info = {"agent_name": self._name, "episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(self._episode_mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
             episode_info.update(info)
 
-            # if self._episode % self._checkpoint_frequency == 0:
-            #     self.Save(self._config['checkpoint_root'])
+            if self._episode % self._checkpoint_frequency == 0 and self._best_score > self._prev_best_mean_score:
+                self.Checkpoint()
 
             yield episode_info
         
         # finished training save self.
-        self.Save(self._config['checkpoint_root'])
+        self.Checkpoint()
 
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
         raise NotImplementedError("Error must implement the Calculate Loss function")
@@ -142,11 +143,29 @@ class BaseAgent(object):
     def Learn(self):
         raise NotImplementedError("Error must implement Learn function")
 
-    def Save(self, filepath):
-        raise NotImplementedError("Error must implement save function")
-
     def Load(self, filepath):
         raise NotImplementedError("Error must implement load function")
+
+    def Save(self, folderpath, filepath):
+        # move into utility class
+        if not os.path.exists(folderpath):
+            os.mkdir(folderpath)
+
+        if self._num_saves >= self._config['checkpoint_max_num']:
+            list_of_files = os.listdir(folderpath)
+            full_path = [folderpath + "/{0}".format(x) for x in list_of_files]
+
+            oldest_file = min(full_path, key=os.path.getctime)
+            os.remove(oldest_file)
+
+            self._num_saves = 0
+
+        self._num_saves += 1
+    
+    def Checkpoint(self):
+        folderpath = self._config['checkpoint_root'] + "/" + self._name
+        filename = "episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + ".pt"
+        self.Save(folderpath, filename)
 
     def OptimizationStep(self, optimizer, network, loss, clipping_norm=None, retain_graph=False):
         optimizer.zero_grad()

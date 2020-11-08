@@ -31,7 +31,7 @@ from ..neural_networks.ConstraintNetwork import ConstraintNetwork
 # feels bad.
 
 class ApexRainbowDQLActor(RainbowDQL):
-    def __init__(self, config, agent_id):
+    def __init__(self, config, agent_id, learner):
         # need to set a device first.
         apex_parameters = config['apex_parameters']
         self._device = apex_parameters['actor_device']
@@ -40,6 +40,7 @@ class ApexRainbowDQLActor(RainbowDQL):
         
         self._agent_id = agent_id
         self._name = self._name + "_" + str(agent_id)
+        self._learner = learner
 
         # every n steps
         self._sync_steps = 0
@@ -82,11 +83,12 @@ class ApexRainbowDQLActor(RainbowDQL):
             # update the agent
             self._sync_steps += 1
             if self._sync_steps % self._learner_sync_frequency == 0:
-                self._request_update = True 
+                # self._request_update = True 
                 self._sync_steps = 0
+                self.UpdateNetwork(self._learner._net, self._net)
         
-            while self._request_update:
-                time.sleep(0.0001)
+            # while self._request_update:
+            #     time.sleep(0.0001)
 
 
         time.sleep(0.0001)
@@ -105,6 +107,10 @@ class ApexRainbowDQLActor(RainbowDQL):
 
             self._memory.BatchAppend(states_np, actions_np, next_states_np, rewards_np, dones_np, errors_np, self._mini_batch_size)
             self._memories_waiting = True
+
+    # I want the manager to do the checkpointing from the actors
+    def Checkpoint(self):
+        pass
 
 class ApexRainbowDQLLearner(RainbowDQL):
     def __init__(self, config):
@@ -147,7 +153,6 @@ class ApexRainbowDQL:
         self._learner = learner_class(self._config)
         self._actors = []
 
-
         self._mini_batch_size = self._apex_parameters['mini_batch_size']
 
         # actors
@@ -155,26 +160,35 @@ class ApexRainbowDQL:
         self._num_threads = self._apex_parameters['num_threads']
 
         for i in range(self._num_actors):
-            actor = actor_class(config, i)
-            self._CopyLearner(actor)
+            actor = actor_class(config, i, self._learner)
+            # self._CopyLearner(actor)
 
             self._actors.append(actor)
+
+        self._num_ep_last_save = 0
+        self._checkpoint_freq = self._config['checkpoint_frequency'] * self._num_actors
 
         self._actor_finished = False
         self._learns = 0
         self._episode_infos = []
+
+        print("Finished initialization")
 
     def Train(self):
         learner_thread = threading.Thread(target=self.TrainLearner, args=())
         learner_thread.daemon = True
         learner_thread.start()
 
+        print("Finished starting learner")
+
         actors_per_thread = self._num_actors // self._num_threads
         extra_actors = self._num_actors % self._num_threads
         actor_groups = []
         actor_threads = []
         actor_idx = 0
-        for i in range(self._num_threads):
+
+        i = 0
+        while i < self._num_threads and (actors_per_thread > 0 or extra_actors > 0):
             actor_groups.append([])
             for j in range(actors_per_thread):
                 actor_groups[i].append(self._actors[actor_idx])
@@ -183,29 +197,48 @@ class ApexRainbowDQL:
                 actor_groups[i].append(self._actors[actor_idx])
                 extra_actors -= 1
                 actor_idx += 1
+
+            i += 1
+
+        print("Finished grouping actors")
         
         for group in actor_groups:
             thread = threading.Thread(target=self.TrainActors, args=(group))
             thread.daemon = True
 
             actor_threads.append(thread)
-            thread.start()
 
+        print("Finished creating threads")
+
+        for thread in actor_threads:
+            thread.start()
+        
+        print("Finished starting threads")
+        
+
+        print("Beginning training")
         while not self._actor_finished:
 
             self._TransferMemories()
 
             # if self._learns > self._learner_sync_frequency:
                 # self._learns = 0
-            for actor in self._actors:
-                self._CopyLearner(actor)
+            # for actor in self._actors:
+            #     self._CopyLearner(actor)
 
-            # if there are no infos wait.
-            # while not self._episode_infos:
+
 
             time.sleep(0.0001)
             while self._episode_infos:
+                self._num_ep_last_save += 1
                 yield self._episode_infos.pop(0)
+
+            if self._num_ep_last_save > self._checkpoint_freq:
+                self.Save()
+                self._num_ep_last_save = 0
+        
+        self.Save()
+
 
     def TrainActors(self, *actors):
         trains = []
@@ -255,4 +288,21 @@ class ApexRainbowDQL:
             actor.UpdateNetwork(self._learner._target_net, actor._target_net, tau)
             self._learner._copying = False
             actor._request_update = False
+
+    def Save(self):
+        best_mean_score = float('-inf')
+        actor_idx = 0
+        for i, actor in enumerate(self._actors):
+            if actor._best_mean_score > best_mean_score:
+                best_mean_score = actor._best_mean_score
+                actor_idx = i 
+
+        
+        # now save the actor
+        actor = self._actors[actor_idx]
+
+        folderpath = self._config['checkpoint_root'] + "/" + self._config['name']
+        filename = "episode_" + str(actor._episode) + "_score_" + str(round(actor._episode_mean_score, 2)) + ".pt"
+        self._actors[actor_idx].Save(folderpath, filename)
+            
 
