@@ -151,16 +151,15 @@ class BaseAgent(object):
         if not os.path.exists(folderpath):
             os.mkdir(folderpath)
 
+        
         if self._num_saves >= self._config['checkpoint_max_num']:
             list_of_files = os.listdir(folderpath)
             full_path = [folderpath + "/{0}".format(x) for x in list_of_files]
 
             oldest_file = min(full_path, key=os.path.getctime)
             os.remove(oldest_file)
-
-            self._num_saves = 0
-
-        self._num_saves += 1
+        else:
+            self._num_saves += 1
     
     def Checkpoint(self):
         folderpath = self._config['checkpoint_root'] + "/" + self._name
