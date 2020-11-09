@@ -25,7 +25,6 @@ class BaseAgent(object):
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
         self._input_shape = self._env.observation_space.shape
         self._checkpoint_frequency = config['checkpoint_frequency']
-        self._num_saves = 0
 
         self._max_steps = config['max_steps']        
         self._reward_goal = config["reward_goal"]
@@ -152,14 +151,12 @@ class BaseAgent(object):
             os.mkdir(folderpath)
 
         
-        if self._num_saves >= self._config['checkpoint_max_num']:
-            list_of_files = os.listdir(folderpath)
+        list_of_files = os.listdir(folderpath)
+        if len(list_of_files) >= self._config['checkpoint_max_num']:
             full_path = [folderpath + "/{0}".format(x) for x in list_of_files]
 
             oldest_file = min(full_path, key=os.path.getctime)
             os.remove(oldest_file)
-        else:
-            self._num_saves += 1
     
     def Checkpoint(self):
         folderpath = self._config['checkpoint_root'] + "/" + self._name
