@@ -65,12 +65,7 @@ class RainbowDQL(BaseAgent):
             next_state, reward, done, info = self._env.step(action)
             transition = (state, action, next_state, reward, done)
 
-
-            if self._n_steps > 1:
-                transition = self._memory_n_step.Append(*transition)
-
-            if transition:
-                self._memory.Append(*transition)
+            self.SaveMemory(transition)
             
             if len(self._memory) > self._batch_size:
                 self.Learn()
@@ -93,6 +88,13 @@ class RainbowDQL(BaseAgent):
         action = q_values.argmax().item()
 
         return action
+
+    def SaveMemory(self, transition):
+        if self._n_steps > 1:
+            transition = self._memory_n_step.Append(*transition)
+
+        if transition:
+            self._memory.Append(*transition)
     
     def Learn(self):
         states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t = self.SampleMemoryT(self._batch_size)
@@ -197,6 +199,6 @@ class RainbowDQL(BaseAgent):
         self._net.load_state_dict(checkpoint['net_state_dict'])
         self._target_net.load_state_dict(checkpoint['target_net_state_dict'])
         self._net_optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
-        self._episode.load_state_dict(checkpoint['episode'])
-        self._total_steps.load_state_dict(checkpoint['total_steps'])
+        self._episode = checkpoint['episode']
+        self._total_steps = checkpoint['total_steps']
         

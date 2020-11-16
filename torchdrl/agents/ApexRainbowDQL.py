@@ -65,14 +65,8 @@ class ApexRainbowDQLActor(RainbowDQL):
             next_state, reward, done, info = self._env.step(action)
             transition = (state, action, next_state, reward, done)
 
-            if self._n_steps > 1:
-                transition = self._memory_n_step.Append(*transition)
-            
-            # if a n_step transition was returned from the memory.
-            if transition:
-                self._internal_memory.Append(*transition)
+            self.SaveMemory(transition)            
             self.PrepareMemories()
-            
 
             episode_reward += reward
             state = next_state
@@ -94,6 +88,14 @@ class ApexRainbowDQLActor(RainbowDQL):
         time.sleep(0.0001)
             
         return episode_reward, self._steps, info
+
+    def SaveMemory(self, transition):
+        if self._n_steps > 1:
+            transition = self._memory_n_step.Append(*transition)
+            
+            # if a n_step transition was returned from the memory.
+        if transition:
+            self._internal_memory.Append(*transition)
 
     def PrepareMemories(self):
         if len(self._internal_memory) >= self._mini_batch_size:
@@ -306,3 +308,9 @@ class ApexRainbowDQL:
         self._actors[actor_idx].Save(folderpath, filename)
             
 
+    def Load(self, filepath):
+        self._learner.Load(filepath)
+
+        for actor in self._actors:
+            actor.UpdateNetwork(self._learner._net, actor._net)
+            actor.UpdateNetwork(self._learner._target_net, actor._target_net)
