@@ -78,20 +78,21 @@ class ApexRainbowDQLActor(RainbowDQL):
             self._sync_steps += 1
             if self._sync_steps % self._learner_sync_frequency == 0:
                 # self._request_update = True 
+                self.SyncToLearner()
                 self._sync_steps = 0
-                self.UpdateNetwork(self._learner._net, self._net)
         
             # while self._request_update:
             #     time.sleep(0.0001)
 
 
+        self.SyncToLearner()
         time.sleep(0.0001)
             
         return episode_reward, self._steps, info
 
     def SaveMemory(self, transition):
-        if self._n_steps > 1:
-            transition = self._memory_n_step.Append(*transition)
+        # if self._n_steps > 1:
+        #     transition = self._memory_n_step.Append(*transition)
             
             # if a n_step transition was returned from the memory.
         if transition:
@@ -113,6 +114,10 @@ class ApexRainbowDQLActor(RainbowDQL):
     # I want the manager to do the checkpointing from the actors
     def Checkpoint(self):
         pass
+
+    def SyncToLearner(self):
+        self.UpdateNetwork(self._learner._net, self._net)
+        self.UpdateNetwork(self._learner._target_net, self._target_net)
 
 class ApexRainbowDQLLearner(RainbowDQL):
     def __init__(self, config):
@@ -263,7 +268,7 @@ class ApexRainbowDQL:
 
     def TrainLearner(self):
         while not self._actor_finished:
-            if len(self._learner._memory) > self._batch_size:
+            if len(self._learner._memory) > self._batch_size and len(self._learner._memory) > self._learner._warm_up:
                 self._learner.Learn()
                 # time.sleep(0.0001)
 
@@ -275,7 +280,8 @@ class ApexRainbowDQL:
                 states_np, actions_np, next_states_np, rewards_np, dones_np, errors_np, _ = actor._memory.Pop(self._mini_batch_size)
                 for i in range(self._mini_batch_size):
                     transition = (states_np[i], actions_np[i], next_states_np[i], rewards_np[i], dones_np[i], errors_np[i])
-                    transition = self._learner._memory_n_step.Append(*transition)
+                    if self._hyperparameters['n_steps'] > 1:
+                        transition = self._learner._memory_n_step.Append(*transition)
                     
                     if transition:
                         self._learner._memory.Append(*transition)

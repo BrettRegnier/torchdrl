@@ -26,7 +26,8 @@ class BaseAgent(object):
         self._input_shape = self._env.observation_space.shape
         self._checkpoint_frequency = config['checkpoint_frequency']
 
-        self._max_steps = config['max_steps']        
+        self._warm_up = config['warm_up']
+        self._max_steps = config['max_steps']
         self._reward_goal = config["reward_goal"]
         self._reward_window = config["reward_window"] # how much to average the score over
         self._episode_score = 0

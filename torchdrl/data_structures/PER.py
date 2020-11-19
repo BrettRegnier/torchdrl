@@ -34,7 +34,7 @@ class PER(ExperienceReplay):
 
     def BatchAppend(self, states, actions, next_states, rewards, dones, priorities, batch_size):
         for i in range(batch_size):
-            self.Append(states[i], actions[i], next_states[i], rewards[i], dones[i], priorities[i] + self._priority_epsilon)
+            self.Append(states[i], actions[i], next_states[i], rewards[i], dones[i], self._GetPriority(priorities[i]))
 
     def Append(self, state, action, next_state, reward, done, priority=0):
         transition = super().Append(state, action, next_state, reward, done)

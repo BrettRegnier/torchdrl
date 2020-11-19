@@ -3,6 +3,7 @@ import os
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
+from torch.optim import SGD
 from torch.nn.utils import clip_grad_norm_
 
 import numpy as np
@@ -48,7 +49,7 @@ class RainbowDQL(BaseAgent):
         self._target_net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._target_net.eval()
 
-        self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
+        self._net_optimizer = SGD(self._net.parameters(), lr=self._hyperparameters['lr'])
 
         self.UpdateNetwork(self._net, self._target_net)
 
