@@ -50,9 +50,7 @@ class SACD(SAC):
         self._add_noise = False
         # TODO add noise to output
 
-        self._evaluate = True #TODO eval
-
-        self._gamma = config['gamma']
+        self._evaluate = False #TODO eval
 
     def ActionInfo(self, state_t):
         action_probs = self._actor(state_t)
@@ -75,14 +73,14 @@ class SACD(SAC):
             next_q_values2 = self._critic_target2(next_states_t) 
 
             min_q_next_value = action_probs * (torch.min(next_q_values1, next_q_values2) - self._alpha * log_action_probs)
-            min_q_next_value = min_q_next_value.mean(dim=1)
+            min_q_next_value = min_q_next_value.mean(dim=1).unsqueeze(1)
             
         next_q_value = rewards_t + (1.0 - dones_t) * self._gamma * (min_q_next_value)
 
         actions_t_usq = actions_t.unsqueeze(-1)
 
-        q_value1 = self._critic1(states_t).gather(1, actions_t_usq).squeeze(-1)
-        q_value2 = self._critic2(states_t).gather(1, actions_t_usq).squeeze(-1)
+        q_value1 = self._critic1(states_t).gather(1, actions_t_usq)
+        q_value2 = self._critic2(states_t).gather(1, actions_t_usq)
 
         # critic_loss1 = F.l1_loss(q_value1, next_q_value)
         # critic_loss2 = F.l1_loss(q_value2, next_q_value)

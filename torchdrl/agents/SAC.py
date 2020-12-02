@@ -173,11 +173,11 @@ class SAC(BaseAgent):
         alpha_loss = -(self._log_alpha * (log_pi + self._target_entropy).detach()).mean()
         return alpha_loss
     
-    def Save(self, folderpath="saved_models"):
-        if not os.path.exists(folderpath):
-            os.mkdir(folderpath)
+    def Save(self, folderpath, filename):
+        super().Save(folderpath, filename)
 
-        filepath = filepath + "/" + self._config['env_name'] + "_score_" + self._mean_episode_score + "_dql.pt"
+        folderpath += "/" if folderpath[len(folderpath) - 1] != "/" else ""
+        filepath = folderpath + filename
 
         torch.save({
             'critic1_state_dict': self._critic1.state_dict(),
@@ -188,7 +188,7 @@ class SAC(BaseAgent):
             'critic_optimizer2_state_dict': self._critic_optimizer2.state_dict(),
             'actor_state_dict': self._actor.state_dict(),
             'actor_optimizer_state_dict': self._actor_optimizer.state_dict(),
-            'alpha_state_dict': self._alpha.state_dict(),
+            'alpha_state_dict': self._alpha,
             'alpha_optimizer_state_dict': self._alpha_optimizer.state_dict(),
         }, filepath)
 
@@ -207,5 +207,5 @@ class SAC(BaseAgent):
         self._actor.load_state_dict(checkpoint['actor_state_dict'])
         self._actor_optimizer.load_state_dict(checkpoint['actor_optimizer_state_dict'])
 
-        self._alpha.load_state_dict(checkpoint['alpha_state_dict'])
+        self._alpha = checkpoint['alpha_state_dict']
         self._alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer_state_dict'])

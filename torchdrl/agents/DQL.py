@@ -59,12 +59,8 @@ class DQL(BaseAgent):
                 
             next_state, reward, done, info = self._env.step(action)
 
-            if self._apex:
-                self._internal_memory.Append(state, action, next_state, reward, done)
-                self.ApexSendMemories()
-            else:
-                self._memory.Append(state, action, next_state, reward, done)
-                self.Learn()
+            self._memory.Append(state, action, next_state, reward, done)
+            self.Learn()
 
             # update epsilon
             self._epsilon = max(self._epsilon * self._epsilon_decay, self._epsilon_min)
@@ -116,7 +112,7 @@ class DQL(BaseAgent):
         self._memory.BatchUpdate(indices_np, errors.detach().cpu().numpy())
         
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
-        q_values = self._net(states_t).gather(1, actions_t)
+        q_values = self._net(states_t).gather(1, actions_t.unsqueeze(1))
 
         with torch.no_grad():
             next_state_values = self._target_net(next_states_t)

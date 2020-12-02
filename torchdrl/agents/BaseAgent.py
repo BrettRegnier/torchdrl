@@ -17,6 +17,7 @@ class BaseAgent(object):
         self._config = config
 
         self._name = config['name']
+        # self._env = config['env']
         self._env = config['env'](**self._config['env_kwargs'])
         self._seed = config['seed']
         self._enable_seed = config['enable_seed']
@@ -128,11 +129,33 @@ class BaseAgent(object):
         # finished training save self.
         self.Checkpoint()
 
+    def Evaluate(self, episodes=1000):
+        episode = 0
+        episode_scores = []
+        episode_mean_score = 0
+        best_score = -math.inf
+        total_steps = 0
+
+        for i in range(episodes):        
+            if self._enable_seed:
+                self._env.seed(self._seed)
+
+            episode_score, steps, info = self.PlayEpisode(evaluate=True)
+
+            if episode_score > best_score:
+                best_score = episode_score
+            episode_scores.append(episode_score)
+            episode_mean_score = np.mean(episode_scores)
+
+            total_steps += steps
+
+            episode_info = {"eval": True, "agent_name": self._name, "episode": i, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(episode_mean_score, 2), "best_score": round(best_score, 2), "total_steps": total_steps}
+            episode_info.update(info)
+
+            yield episode_info
+
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
         raise NotImplementedError("Error must implement the Calculate Loss function")
-
-    def Evaluate(self):
-        raise NotImplementedError("Error must implenet the Evaluate function")
 
     def PlayEpisode(self):
         raise NotImplementedError("Agent must implement the Step function")
@@ -146,7 +169,7 @@ class BaseAgent(object):
     def Load(self, filepath):
         raise NotImplementedError("Error must implement load function")
 
-    def Save(self, folderpath, filepath):
+    def Save(self, folderpath, filename):
         # move into utility class
         if not os.path.exists(folderpath):
             os.mkdir(folderpath)

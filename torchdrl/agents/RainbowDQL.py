@@ -49,9 +49,14 @@ class RainbowDQL(BaseAgent):
         self._target_net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._target_net.eval()
 
-        self._net_optimizer = SGD(self._net.parameters(), lr=self._hyperparameters['lr'])
+        self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
 
         self.UpdateNetwork(self._net, self._target_net)
+
+    def Evaluate(self, episodes=100):
+        self._net.eval()
+        for episode_info in super().Evaluate(episodes):
+            yield episode_info
 
     def PlayEpisode(self, evaluate=False):
         done = False
@@ -62,14 +67,16 @@ class RainbowDQL(BaseAgent):
         while self._steps != self._max_steps and not done:
             # Noisy - No epsilon
             action = self.Act(state)
-                
-            next_state, reward, done, info = self._env.step(action)
-            transition = (state, action, next_state, reward, done)
-
-            self.SaveMemory(transition)
             
-            if len(self._memory) > self._batch_size:
-                self.Learn()
+            next_state, reward, done, info = self._env.step(action)
+
+            if not evaluate:
+                transition = (state, action, next_state, reward, done)
+
+                self.SaveMemory(transition)
+                
+                if len(self._memory) > self._batch_size:
+                    self.Learn()
             
             episode_reward += reward
             state = next_state
@@ -86,7 +93,9 @@ class RainbowDQL(BaseAgent):
         state_t = state_t.unsqueeze(0)
         
         q_values = self._net(state_t)
-        action = q_values.argmax().item()
+        # action = q_values.argmax().item()
+        action = np.random.choice(len(q_values), p=q_values)
+
 
         return action
 
@@ -119,7 +128,7 @@ class RainbowDQL(BaseAgent):
 
         self._net_optimizer.zero_grad()
         loss.backward()
-        # clip_grad_norm_(self._net.parameters(), 10.0)
+        clip_grad_norm_(self._net.parameters(), 10.0)
         self._net_optimizer.step()
 
         # TODO change if needed

@@ -26,12 +26,12 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
         # scrape one layer off for the advantage and value layers
         prev_layer = hidden_layers[-2:][0]
         last_layer = hidden_layers[-1:][0]
-        hidden_layers = hidden_layers[-1:]
+        hidden_layers = hidden_layers[:-1]
 
         last_activation = (activations[-1:])[0]
-        activations= activations[-1:]
+        activations= activations[:-1]
 
-        self._net = FullyConnectedNetwork(input_shape, last_layer, hidden_layers, activations, dropouts, last_activation, convo)
+        self._net = FullyConnectedNetwork(input_shape, prev_layer, hidden_layers, activations, dropouts, last_activation, convo)
 
         self._adv = nn.Sequential(
             NoisyLinear(prev_layer, last_layer),
@@ -57,7 +57,7 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
 
         q_atoms = val + adv - adv.mean(dim=1, keepdim=True)
 
-        dist = F.softmax(q_atoms, dim=-1)
+        dist = F.log_softmax(q_atoms, dim=-1)
         dist = dist.clamp(min=1e-3) # to avoid not a numbers
 
         return dist
