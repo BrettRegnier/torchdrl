@@ -57,7 +57,7 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
 
         q_atoms = val + adv - adv.mean(dim=1, keepdim=True)
 
-        dist = F.log_softmax(q_atoms, dim=-1)
+        dist = F.softmax(q_atoms, dim=-1)
         dist = dist.clamp(min=1e-3) # to avoid not a numbers
 
         return dist

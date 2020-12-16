@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 import numpy as np
@@ -16,7 +17,7 @@ class FullyConnectedNetwork(BaseNetwork):
 
         self.AssertParameter(hidden_layers, "hidden_layers", int)
         self.AssertParameter(activations, "activations", str, -1)
-        self.AssertParameter(dropouts, "dropouts", float, 0)
+        # self.AssertParameter(dropouts, "dropouts", float, 0)
 
         num_hidden_layers = len(hidden_layers)
 
@@ -46,17 +47,21 @@ class FullyConnectedNetwork(BaseNetwork):
             if final_activation is not None:
                 net.append(self.GetActivation(final_activation))
         else:
-            net.append(nn.Linear(*in_features, n_actions))
+            net.append(nn.Linear(*in_features, hidden_layers[0]))
             if len(activations) > 0 and activations[0] is not None:
                 net.append(self.GetActivation(activations[0]))
+            net.append(nn.Linear(*in_features, n_actions))
             
         # initialize weights
-        for layer in net:
-            if type(layer) == nn.Linear:
-                nn.init.xavier_uniform_(layer.weight)
+        # for layer in net:
+        #     if type(layer) == nn.Linear:
+        #         nn.init.xavier_uniform_(layer.weight)
 
         self._net = nn.Sequential(*net)
         self._net_list = net
+
+        out = self.forward(torch.zeros(1, *input_shape))
+        self._output_size = (int(np.prod(out.size())),)
 
     def forward(self, state):
         if self._convo is not None:

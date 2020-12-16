@@ -2,8 +2,7 @@ import os
 
 import torch
 import torch.nn.functional as F
-from torch.optim import Adam
-from torch.optim import SGD
+import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 
 import numpy as np
@@ -49,7 +48,8 @@ class RainbowDQL(BaseAgent):
         self._target_net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
         self._target_net.eval()
 
-        self._net_optimizer = Adam(self._net.parameters(), lr=self._hyperparameters['lr'])
+        # self._net_optimizer = optim.SGD(self._net.parameters(), lr=self._hyperparameters['lr'], momentum=0.9)
+        self._net_optimizer = optim.Adam(self._net.parameters(), lr=self._hyperparameters['lr'], eps=1e-5)
 
         self.UpdateNetwork(self._net, self._target_net)
 
@@ -93,10 +93,8 @@ class RainbowDQL(BaseAgent):
         state_t = state_t.unsqueeze(0)
         
         q_values = self._net(state_t)
-        # action = q_values.argmax().item()
-        action = np.random.choice(len(q_values), p=q_values)
-
-
+        action = q_values.argmax().item()
+        
         return action
 
     def SaveMemory(self, transition):
@@ -127,7 +125,7 @@ class RainbowDQL(BaseAgent):
             loss = torch.mean(errors * weights_t)
 
         self._net_optimizer.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
         clip_grad_norm_(self._net.parameters(), 10.0)
         self._net_optimizer.step()
 

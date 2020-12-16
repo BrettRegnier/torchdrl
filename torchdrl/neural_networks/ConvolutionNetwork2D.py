@@ -5,9 +5,9 @@ import numpy as np
 from .BaseNetwork import BaseNetwork
 from .Flatten import Flatten
 
-class ConvolutionNetwork(BaseNetwork):
+class ConvolutionNetwork2D(BaseNetwork):
     def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, activations:list, pools:list, flatten: bool):
-        super(ConvolutionNetwork, self).__init__(input_shape)
+        super(ConvolutionNetwork2D, self).__init__(input_shape)
 
         self._input_shape = input_shape
 
@@ -30,14 +30,14 @@ class ConvolutionNetwork(BaseNetwork):
         self.AssertParameter(paddings, "paddings", int, min_value=0)
 
         convos = []
-        convos.append(nn.Conv1d(channels, filters[0], kernels[0], strides[0], padding=paddings[0]))
+        convos.append(nn.Conv2d(channels, filters[0], kernels[0], strides[0], padding=paddings[0]))
         if len(activations) > 0 and activations[0] is not None:
             convos.append(self.GetActivation(activations[0]))
         if len(pools) > 0 and pools[0] is not None:
             convos.append(nn.MaxPool2d(pools[0]))
         
         for i in range(1, len(filters)):
-            convos.append(nn.Conv1d(filters[i-1], filters[i], kernels[i], strides[i], padding=paddings[i]))
+            convos.append(nn.Conv2d(filters[i-1], filters[i], kernels[i], strides[i], padding=paddings[i]))
             if len(activations) > i and activations[i] is not None:
                 convos.append(self.GetActivation(activations[i]))
             if len(pools) > i and pools[i] is not None:
@@ -48,7 +48,7 @@ class ConvolutionNetwork(BaseNetwork):
             
         # initialize weights
         for layer in convos:
-            if type(layer) == nn.Conv1d:
+            if type(layer) == nn.Conv2d:
                 nn.init.xavier_uniform_(layer.weight)
             
         self._net = nn.Sequential(*convos)

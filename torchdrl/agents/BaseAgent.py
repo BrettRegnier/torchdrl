@@ -130,13 +130,12 @@ class BaseAgent(object):
         self.Checkpoint()
 
     def Evaluate(self, episodes=1000):
-        episode = 0
         episode_scores = []
         episode_mean_score = 0
         best_score = -math.inf
         total_steps = 0
 
-        for i in range(episodes):        
+        for i in range(1, episodes+1):        
             if self._enable_seed:
                 self._env.seed(self._seed)
 

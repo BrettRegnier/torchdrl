@@ -10,10 +10,12 @@ from .FullyConnectedNetwork import FullyConnectedNetwork
 from .ConvolutionNetwork import ConvolutionNetwork
 
 class TwoHeadedNetwork(BaseNetwork):
-    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, final_activation: str, convo=None):
+    def __init__(self, input_shape:tuple, head1_output:int, head2_output:int, hidden_layers:list, activations:list, final_activation: str, convo=None):
         super(TwoHeadedNetwork, self).__init__(input_shape)
 
-        if type(n_actions) is not int:
+        if type(head1_output) is not int:
+            raise AssertionError("Input shape must be of type int")
+        if type(head2_output) is not int:
             raise AssertionError("Input shape must be of type int")
         if type(final_activation) is not str and final_activation is not None:
             raise AssertionError("Last activation must be of type str")
@@ -21,19 +23,21 @@ class TwoHeadedNetwork(BaseNetwork):
         self.AssertParameter(hidden_layers, "hidden_layers", int)
         self.AssertParameter(activations, "activations", str, -1)
 
-        last_layer = (hidden_layers[-1:])[0]
-        last_activation = (activations[-1:])[0]
-        self._net = FullyConnectedNetwork(input_shape, last_layer, hidden_layers, activations, last_activation, convo)
+        last_layer = hidden_layers[-1:]
+        last_activation = activations[-1:]
 
-        heads = [nn.Linear(last_layer, n_actions)]
-        if final_activation is not None:
-            heads.append(self.GetActivation(final_activation))
 
-        self._head1 = nn.Sequential(*heads)
-        self._head2 = nn.Sequential(*heads)
-        
-        # TODO add this in
-        self._net_list = None
+        self._net = FullyConnectedNetwork(input_shape, last_layer[0], hidden_layers, activations, [], last_activation[0], convo)
+
+        net_output = self._net.OutputSize()
+
+        # TODO fix this garbage
+        # last_layer = [512]
+        # activations = ['relu']
+        self._head1 = FullyConnectedNetwork(net_output, head1_output, last_layer, last_activation, [], None, None)
+        self._head2 = FullyConnectedNetwork(net_output, head2_output, last_layer, last_activation, [], None, None)
+
+
 
     def forward(self, state):
         state = self._net(state)
