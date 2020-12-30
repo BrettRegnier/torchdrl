@@ -2,13 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import numpy as np
+
 from .BaseNetwork import BaseNetwork
 from .NoisyLinear import NoisyLinear
 from .FullyConnectedNetwork import FullyConnectedNetwork
 
 class NoisyDuelingCategoricalNetwork(BaseNetwork):
-    def __init__(self, atom_size, support, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activations:str, convo=None):
-        super(NoisyDuelingCategoricalNetwork, self).__init__(input_shape)
+    def __init__(self, atom_size, support, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, body=None, device="cpu"):
+        super(NoisyDuelingCategoricalNetwork, self).__init__(input_shape, body, device)
 
         self._support = support
         self._atom_size = atom_size
@@ -16,33 +18,53 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
 
         if type(n_actions) is not int:
             raise AssertionError("n_actions must be of type int")
-        if type(final_activations) is not str and final_activations is not None:
+        if type(final_activation) is not str and final_activation is not None:
             raise AssertionError("Last activation must be of type str")
 
         self.AssertParameter(hidden_layers, "hidden_layers", int)
         self.AssertParameter(activations, "activations", str, -1)
         self.AssertParameter(dropouts, "dropouts", float, 0)
 
-        # scrape one layer off for the advantage and value layers
-        prev_layer = hidden_layers[-2:][0]
-        last_layer = hidden_layers[-1:][0]
-        hidden_layers = hidden_layers[:-1]
+        adv_net = self.CreateNetList(input_shape, n_actions*self._atom_size, hidden_layers, activations, dropouts, final_activation)
+        val_net = self.CreateNetList(input_shape, self._atom_size, hidden_layers, activations, dropouts, None)
 
-        last_activation = (activations[-1:])[0]
-        activations= activations[:-1]
+        self._adv = nn.Sequential(*adv_net)
+        self._val = nn.Sequential(*val_net)
+        self.to(self._device)
 
-        self._net = FullyConnectedNetwork(input_shape, prev_layer, hidden_layers, activations, dropouts, last_activation, convo)
+        self._CalculateOutputSize()
 
-        self._adv = nn.Sequential(
-            NoisyLinear(prev_layer, last_layer),
-            nn.ReLU(),
-            NoisyLinear(last_layer, n_actions * self._atom_size)
-        )
-        self._val = nn.Sequential(
-            NoisyLinear(prev_layer, last_layer),
-            nn.ReLU(),
-            NoisyLinear(last_layer, self._atom_size)
-        )
+    def CreateNetList(self, input_shape, n_actions, hidden_layers, activations, dropouts, final_activation):
+        net = []
+
+        in_features = int(np.prod(input_shape))
+        if hidden_layers:
+            out_features = hidden_layers[0]
+
+            net.append(NoisyLinear(in_features, out_features))
+            if activations:
+                net.append(self.GetActivation(activations[0]))
+            if dropouts:
+                net.append(nn.Dropout(dropouts[0]))
+
+            for i in range(1, len(hidden_layers)):
+                in_features = out_features
+                out_features = hidden_layers[i]
+
+                net.append(NoisyLinear(in_features, out_features))
+                if activations and len(activations) > i:
+                    net.append(self.GetActivation(activations[i]))
+                if dropouts and len(dropouts) > i:
+                    net.append(nn.Dropout(dropouts[i]))
+            in_features = out_features
+            
+        out_features = n_actions
+        net.append(NoisyLinear(in_features, out_features))
+
+        if final_activation is not None:
+            net.append(self.GetActivation(final_activation))
+
+        return net
         
     def forward(self, state):
         dist = self.DistributionForward(state)
@@ -51,7 +73,9 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
         return q
 
     def DistributionForward(self, state):
-        x = self._net(state)
+        x = state
+        if self._body:
+            x = self._body(x)
         adv = self._adv(x).view(-1, self._n_actions, self._atom_size)
         val = self._val(x).view(-1, 1, self._atom_size)
 

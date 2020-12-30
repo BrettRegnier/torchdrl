@@ -6,12 +6,12 @@ import torch.optim as optim
 
 import numpy as np
 
-from .SAC import SAC
-from .BaseAgent import BaseAgent
+from torchdrl.agents.monte_carlo.SAC import SAC
+from torchdrl.agents.markov.BaseAgent import BaseAgent
 
-from ..neural_networks.ConvolutionNetwork import ConvolutionNetwork as CN
-from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN
-from ..neural_networks.TwoHeadedNetwork import TwoHeadedNetwork as THN
+from torchdrl.neural_networks.ConvolutionNetwork1D import ConvolutionNetwork1D as CN
+from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN
+from torchdrl.neural_networks.TwoHeadedNetwork import TwoHeadedNetwork as THN
 
 # TODO remove the connection of SAC and SACD due to the creation of the SAC network and then deletion waste of resources.
 # TODO generalize creating a convo network (using the config file)

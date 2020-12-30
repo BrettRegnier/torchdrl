@@ -1,26 +1,30 @@
 import os
 import math
 import torch
+import random
 import numpy as np
 
-from ..data_structures import Shared
+from torchdrl.data_structures import Shared
 
-from ..data_structures.ExperienceReplay import ExperienceReplay
-from ..data_structures.UniformExperienceReplay import UniformExperienceReplay
-from ..data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
-from ..data_structures.NStepPrioritizedExperienceReplay import NStepPrioritizedExperienceReplay
-from ..data_structures.PER import PER
-from ..representations.Plotter import Plotter
+from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
+from torchdrl.data_structures.UniformExperienceReplay import UniformExperienceReplay
+from torchdrl.data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
+from torchdrl.representations.Plotter import Plotter
 
 class BaseAgent(object):
     def __init__(self, config):
         self._config = config
 
         self._name = config['name']
-        # self._env = config['env']
-        self._env = config['env'](**self._config['env_kwargs'])
+        self._env = config['env']
         self._seed = config['seed']
         self._enable_seed = config['enable_seed']
+
+        if self._enable_seed:
+            np.random.seed(self._seed)
+            random.seed(self._seed)
+            torch.manual_seed(self._seed)
+            self._env.seed(self._seed)
 
         self._action_type = "DISCRETE" if self._env.action_space.dtype == np.int64 else "CONTINUOUS"
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
@@ -60,17 +64,23 @@ class BaseAgent(object):
             if memory_type == "PER":
                 alpha = self._hyperparameters['alpha']
                 beta = self._hyperparameters['beta']
-                priority_epsilon = self._hyperparameters['priority_epsilon']
-                self._memory = PER(memory_size, self._input_shape, alpha, beta, priority_epsilon)
+                # TODO remove priority ep?
+                priority_epsilon = self._hyperparameters['priority_epsilon'] 
+                self._memory = PrioritizedExperienceReplay(memory_size, self._input_shape, alpha=alpha, beta=beta)
             else:
+                # TODO change to experience replay and add in random sampling line UER
                 self._memory = UniformExperienceReplay(memory_size, self._input_shape)
 
         if self._n_steps > 1:
             self._memory_n_step = ExperienceReplay(memory_size, self._input_shape, self._n_steps, self._gamma)
 
+        if self._config['log']:
+            self._plotter = Plotter()
+
         self._steps = 0
         self._total_steps = 0
         self._done_training = False
+
             
     def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
         for episode_info in self.Train(num_episodes, num_steps):
@@ -100,10 +110,7 @@ class BaseAgent(object):
 
         mean_score = 0
         while self._episode < num_episodes and self._total_steps < num_steps and not self._done_training:
-            if self._enable_seed:
-                self._env.seed(self._seed)
-
-            episode_score, steps, info = self.PlayEpisode(evaluate=False)
+            episode_score, steps, episode_loss, info = self.PlayEpisode(evaluate=False)
 
             self._episode_scores.append(episode_score)
             self._episode_scores = self._episode_scores[-self._reward_window:]
@@ -118,7 +125,16 @@ class BaseAgent(object):
             
             self._episode += 1
 
-            episode_info = {"agent_name": self._name, "episode": self._episode, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(self._episode_mean_score, 2), "best_score": round(self._best_score, 2), "total_steps": self._total_steps}
+            episode_info = {}
+            episode_info['agent_name'] = self._name
+            episode_info['episode'] = self._episode
+            episode_info['loss'] = episode_loss
+            episode_info['steps'] = steps
+            episode_info['episode_score'] = round(episode_score, 2)
+            episode_info['mean_score'] = round(self._episode_mean_score, 2)
+            episode_info['best_score'] = round(self._best_score, 2)
+            episode_info['total_steps'] = self._total_steps
+            
             episode_info.update(info)
 
             if self._episode % self._checkpoint_frequency == 0 and self._best_score > self._prev_best_mean_score:
@@ -128,6 +144,7 @@ class BaseAgent(object):
         
         # finished training save self.
         self.Checkpoint()
+        self._plotter.ShowAll()
 
     def Evaluate(self, episodes=1000):
         episode_scores = []
@@ -196,10 +213,9 @@ class BaseAgent(object):
         optimizer.step()
 
     def SampleMemoryT(self, batch_size):
-        states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np = self._memory.Sample(batch_size)
+        states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np, indices_np = self._memory.Sample(batch_size)
         states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPWeightedMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
         return states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t
-        
 
     def GenericConvertNPMemoryToTensor(self, *arrays_np):
         tensors = ()

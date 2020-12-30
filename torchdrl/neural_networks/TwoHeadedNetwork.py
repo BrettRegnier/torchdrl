@@ -7,7 +7,7 @@ import numpy as np
 
 from .BaseNetwork import BaseNetwork
 from .FullyConnectedNetwork import FullyConnectedNetwork
-from .ConvolutionNetwork import ConvolutionNetwork
+from .ConvolutionNetwork1D import ConvolutionNetwork1D
 
 class TwoHeadedNetwork(BaseNetwork):
     def __init__(self, input_shape:tuple, head1_output:int, head2_output:int, hidden_layers:list, activations:list, final_activation: str, convo=None):

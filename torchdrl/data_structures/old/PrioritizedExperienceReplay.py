@@ -6,15 +6,18 @@ import math
 from .ExperienceReplay import ExperienceReplay
 from .SegmentTree_v2 import SegmentTree_v2
 
-class PER(ExperienceReplay):
+class PrioritizedExperienceReplay(ExperienceReplay):
     def __init__(self, capacity, input_shape, alpha, beta, priority_epsilon, n_step=1, gamma=0.99):
-        super(PER, self).__init__(capacity, input_shape, n_step, gamma)
+        super(PrioritizedExperienceReplay, self).__init__(capacity, input_shape, n_step, gamma)
         self._capacity = capacity
         self._input_shape = input_shape
         self._n_step = n_step
         self._gamma = gamma
 
-        self._sum_tree = SegmentTree_v2(self._capacity)
+        tree_capacity = 1
+        while tree_capacity < self._capacity:
+            tree_capacity *= 2
+        self._sum_tree = SegmentTree_v2(tree_capacity)
 
         # tranisition buffer for N-step learning
         self._n_step_buffer = collections.deque(maxlen=self._n_step)
@@ -32,6 +35,8 @@ class PER(ExperienceReplay):
         self._max_priority = 1 
         self._min_priority = math.inf
 
+        self._tree_pointer = 0
+
     def BatchAppend(self, states, actions, next_states, rewards, dones, priorities, batch_size):
         for i in range(batch_size):
             self.Append(states[i], actions[i], next_states[i], rewards[i], dones[i], self._GetPriority(priorities[i]))
@@ -44,7 +49,8 @@ class PER(ExperienceReplay):
             if priority == 0:
                 priority = self._max_priority ** self._alpha
             self.UpdateMaxMinPriority(priority)
-            self._sum_tree.Add(priority)
+            self._sum_tree[self._tree_pointer] = priority
+            self._tree_pointer = (self._tree_pointer + 1) % self._capacity
 
         return transition
 
@@ -52,8 +58,9 @@ class PER(ExperienceReplay):
         indices = []
         priorities = []
 
-        priority_segment = (self._sum_tree.Total() - self._min_priority) / batch_size
-
+        # priority_segment = (self._sum_tree.Total() - self._min_priority) / batch_size
+        priority_segment = self._sum_tree.Total() / batch_size
+        
         for i in range(batch_size):
             a = priority_segment * i
             b = priority_segment * (i + 1)
@@ -90,7 +97,7 @@ class PER(ExperienceReplay):
 
     def BatchUpdate(self, indices, errors):
         for idx, error in zip(indices, errors):
-            self._sum_tree.Update(idx, self._GetPriority(error))
+            self._sum_tree[idx] = self._GetPriority(error)
 
     def _GetPriority(self, error):
         return (error + self._priority_epsilon) ** self._alpha

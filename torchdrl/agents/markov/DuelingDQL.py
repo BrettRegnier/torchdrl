@@ -2,7 +2,7 @@ from torch.optim import Adam
 
 from .DQL import DQL
 
-from ..neural_networks.DuelingNetwork import DuelingNetwork
+from torchdrl.neural_networks.DuelingNetwork import DuelingNetwork
 
 class DuelingDQL(DQL):
     def __init__(self, config):

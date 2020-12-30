@@ -7,16 +7,16 @@ from torch.nn.utils import clip_grad_norm_
 
 import numpy as np
 import random
+import copy
 
-from .BaseAgent import BaseAgent
+from torchdrl.agents.markov.BaseAgent import BaseAgent
 
-from ..neural_networks.NoisyDuelingCategoricalNetwork import NoisyDuelingCategoricalNetwork
-from ..representations.Plotter import Plotter
+from torchdrl.neural_networks.ConvolutionNetwork1D import ConvolutionNetwork1D
+from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
+from torchdrl.neural_networks.NoisyDuelingCategoricalNetwork import NoisyDuelingCategoricalNetwork
+from torchdrl.representations.Plotter import Plotter
 
-from ..data_structures.NStepPrioritizedExperienceReplay import NStepPrioritizedExperienceReplay
-from ..data_structures.UniformExperienceReplay import UniformExperienceReplay
-
-from ..neural_networks.ConstraintNetwork import ConstraintNetwork
+import time
 # DQN
 # Double DQN
 # Dueling DQN
@@ -40,18 +40,47 @@ class RainbowDQL(BaseAgent):
         memory_type = self._hyperparameters['memory_type']
         memory_size = self._hyperparameters['memory_size']
 
-        fcc = self._hyperparameters['fc']
+        # TODO make network and optimizer a paramter instead.
+
+        # TODO add ltsm?
+        # or move the creation of network out and have it somewhere
+        # where a potential user interface could build it and pass it in?
+        # although paramters are there for a reason...?
+        # but in we want more dynamic treatment should be a param
+        
         # and dueling noisy
-        self._net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        convo_config = self._hyperparameters['convo']
+        fc_config = self._hyperparameters['fc']
+        head_config = self._hyperparameters['head']
+
+        convo_net = None
+        fc_net = None
+
+        input_shape = self._input_shape
+        if convo_config:
+            convo_net = ConvolutionNetwork1D(input_shape, convo_config['filters'], convo_config['kernels'], convo_config['strides'], convo_config['paddings'], convo_config['activations'], convo_config['pools'], convo_config['flatten'], body=None, device=self._device)
+            input_shape = convo_net.OutputSize
+        if fc_config:
+            fc_net = FullyConnectedNetwork(input_shape, fc_config["hidden_layers"][-1:][0], fc_config["hidden_layers"][:-1], fc_config['activations'], fc_config['dropouts'], fc_config['final_activation'], body=convo_net, device=self._device)
+            input_shape = fc_net.OutputSize
+        self._net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, input_shape, self._n_actions, head_config["hidden_layers"], head_config['activations'], head_config['dropouts'], head_config['final_activation'], body=fc_net, device=self._device)
 
         # double DQN
-        self._target_net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, self._input_shape, self._n_actions, fcc["hidden_layers"], fcc['activations'], fcc['dropouts'], fcc['final_activation'], self._hyperparameters['convo']).to(self._device)
+        input_shape = self._input_shape
+        if convo_config:
+            convo_net = ConvolutionNetwork1D(input_shape, convo_config['filters'], convo_config['kernels'], convo_config['strides'], convo_config['paddings'], convo_config['activations'], convo_config['pools'], convo_config['flatten'], body=None, device=self._device)
+            input_shape = convo_net.OutputSize
+        if fc_config:
+            fc_net = FullyConnectedNetwork(input_shape, fc_config["hidden_layers"][-1:][0], fc_config["hidden_layers"][:-1], fc_config['activations'], fc_config['dropouts'], fc_config['final_activation'], body=convo_net, device=self._device)
+            input_shape = fc_net.OutputSize
+        self._target_net = NoisyDuelingCategoricalNetwork(self._atom_size, self._support, input_shape, self._n_actions, head_config["hidden_layers"], head_config['activations'], head_config['dropouts'], head_config['final_activation'], body=fc_net, device=self._device)
         self._target_net.eval()
 
         # self._net_optimizer = optim.SGD(self._net.parameters(), lr=self._hyperparameters['lr'], momentum=0.9)
         self._net_optimizer = optim.Adam(self._net.parameters(), lr=self._hyperparameters['lr'], eps=1e-5)
-
         self.UpdateNetwork(self._net, self._target_net)
+
+        print(self._net)
 
     def Evaluate(self, episodes=100):
         self._net.eval()
@@ -59,12 +88,14 @@ class RainbowDQL(BaseAgent):
             yield episode_info
 
     def PlayEpisode(self, evaluate=False):
+        self._steps = 0
         done = False
         episode_reward = 0
-        self._steps = 0
+        episode_loss = 0
         
         state = self._env.reset()
         while self._steps != self._max_steps and not done:
+            # print(self._total_steps, state, len(self._memory))
             # Noisy - No epsilon
             action = self.Act(state)
             
@@ -73,10 +104,13 @@ class RainbowDQL(BaseAgent):
             if not evaluate:
                 transition = (state, action, next_state, reward, done)
 
+                # if (self._total_steps == 28):
+                #     x =  True
                 self.SaveMemory(transition)
+
                 
-                if len(self._memory) > self._batch_size:
-                    self.Learn()
+                if len(self._memory) >= self._batch_size:
+                    episode_loss += self.Learn()
             
             episode_reward += reward
             state = next_state
@@ -84,7 +118,7 @@ class RainbowDQL(BaseAgent):
             self._steps += 1
             self._total_steps += 1
             
-        return episode_reward, self._steps, info
+        return episode_reward, self._steps, episode_loss, info
 
     # @torch.no_grad()
     def Act(self, state):
@@ -117,7 +151,7 @@ class RainbowDQL(BaseAgent):
         # n-step learning with one-step to prevent high-variance
         if self._n_steps > 1:
             gamma = self._gamma ** self._n_steps
-            states_np, actions_np, next_states_np, rewards_np, dones_np = self._memory_n_step.SampleBatchFromIndices(indices_np)
+            states_np, actions_np, next_states_np, rewards_np, dones_np, _ = self._memory_n_step.SampleBatchFromIndices(indices_np)
             states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np)
             errors_n = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._batch_size, gamma)
             errors += errors_n
@@ -125,7 +159,7 @@ class RainbowDQL(BaseAgent):
             loss = torch.mean(errors * weights_t)
 
         self._net_optimizer.zero_grad()
-        loss.backward(retain_graph=True)
+        loss.backward()
         clip_grad_norm_(self._net.parameters(), 10.0)
         self._net_optimizer.step()
 
@@ -143,9 +177,12 @@ class RainbowDQL(BaseAgent):
         
         # Prioritized Experience Replay
         updated_priorities = errors.detach().cpu().numpy()
+        # print(indices_np)
+        # if self._total_steps == 35:
+        #     exit()
         self._memory.BatchUpdate(indices_np, updated_priorities)
 
-        return loss
+        return loss.detach().cpu().numpy()
         
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):
         # categorical
@@ -184,6 +221,7 @@ class RainbowDQL(BaseAgent):
         log_p = torch.log(dist[range(batch_size), actions_t])
 
         errors = -(proj_dist * log_p).sum(1)
+        # print(errors)
         return errors
 
     def Save(self, folderpath, filename):

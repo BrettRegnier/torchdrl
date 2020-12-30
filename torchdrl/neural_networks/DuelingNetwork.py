@@ -18,15 +18,18 @@ class DuelingNetwork(BaseNetwork):
         self.AssertParameter(activations, "activations", str, -1)
         self.AssertParameter(dropouts, "dropouts", float, 0)
 
-        # scrape one layer off for the advantage and value layers
-        prev_layer = hidden_layers[-2:][0]
-        last_layer = hidden_layers[-1:][0]
-        hidden_layers = hidden_layers[-1:]
+        if (hidden_layers > 1):
+            # scrape one layer off for the advantage and value layers
+            prev_layer = hidden_layers[-2:][0]
+            last_layer = hidden_layers[-1:][0]
+            hidden_layers = hidden_layers[-1:]
 
-        last_activation = (activations[-1:])[0]
-        activations= activations[-1:]
+            last_activation = (activations[-1:])[0]
+            activations= activations[-1:]
 
-        self._net = FullyConnectedNetwork(input_shape, last_layer, hidden_layers, activations, dropouts, last_activation, convo)
+            self._net = FullyConnectedNetwork(input_shape, last_layer, hidden_layers, activations, dropouts, last_activation, convo)
+        # else:
+        #     prev_layer = np.prod(input_shape
 
         self._adv = nn.Sequential(
             nn.Linear(prev_layer, last_layer),

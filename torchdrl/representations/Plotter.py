@@ -19,7 +19,7 @@ class Plotter:
         if not isinstance(label, str):
             raise AssertionError("Label must be of type string")
         if not isinstance(point, tuple) or len(point) != 2 or not isinstance(point[0], (int,float)) or not isinstance(point[1], (int, float)):
-            raise AssertionError("Point must be a tuple of length 2 in form (x:int, y:int)")
+            raise AssertionError("Point must be a tuple of length 2 in form (x:int, y:(int,float))")
 
         if figure not in self._figures:
             self.AddFigure(figure, label)

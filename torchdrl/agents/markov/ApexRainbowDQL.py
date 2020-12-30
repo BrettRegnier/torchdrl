@@ -16,19 +16,12 @@ from .BaseAgent import BaseAgent
 
 from .RainbowDQL import RainbowDQL
 
-from ..neural_networks.NoisyDuelingCategoricalNetwork import NoisyDuelingCategoricalNetwork
-from ..representations.Plotter import Plotter
+from torchdrl.neural_networks.NoisyDuelingCategoricalNetwork import NoisyDuelingCategoricalNetwork
+from torchdrl.representations.Plotter import Plotter
 
-from ..data_structures.ExperienceReplay import ExperienceReplay
-from ..data_structures.ApexExperienceReplay import ApexExperieceReplay
-from ..data_structures.UniformExperienceReplay import UniformExperienceReplay
-from ..data_structures.NStepPrioritizedExperienceReplay import NStepPrioritizedExperienceReplay
-from ..data_structures.PER import PER
-
-from ..neural_networks.ConstraintNetwork import ConstraintNetwork
-
-# TODO try again. the other apex worked better...
-# feels bad.
+from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
+from torchdrl.data_structures.ApexExperienceReplay import ApexExperieceReplay
+from torchdrl.data_structures.UniformExperienceReplay import UniformExperienceReplay
 
 class ApexRainbowDQLActor(RainbowDQL):
     def __init__(self, config, agent_id, learner):

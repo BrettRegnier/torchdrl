@@ -6,10 +6,11 @@ import numpy as np
 
 import sys
 
-from .BaseAgent import BaseAgent
-from ..neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN
-from ..neural_networks.TwoHeadedNetwork import TwoHeadedNetwork as THN
+from torchdrl.agents.markov.BaseAgent import BaseAgent
+from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork as FCN
+from torchdrl.neural_networks.TwoHeadedNetwork import TwoHeadedNetwork as THN
 
+# TODO change this to a monte carlo agent instead of a markov one.
 class SAC(BaseAgent):
     def __init__(self, config):
         super(SAC, self).__init__(config)
