@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+from torchdrl.neural_modules.Flatten import Flatten
+
 from torchdrl.neural_networks.BaseNetwork import BaseNetwork
-from torchdrl.neural_networks.Flatten import Flatten
 
 class ConvolutionNetwork1D(BaseNetwork):
     def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, activations:list, pools:list, flatten: bool, body=None, device="cpu"):

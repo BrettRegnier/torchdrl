@@ -6,10 +6,10 @@ import numpy as np
 class BaseNetwork(nn.Module):
     def __init__(self, input_shape:tuple, body=None, device='cpu'):
         super(BaseNetwork, self).__init__()
-        if body is not None and not issubclass(type(body), BaseNetwork):
-            raise AssertionError("Body must be of type BaseNetwork")
-        if type(input_shape) is not tuple:
-            raise AssertionError("Input shape must be of type tuple")
+        
+        assert body is not None and issubclass(type(body), BaseNetwork) 
+        assert isinstance(input_shape, (list, tuple, np.ndarray))
+        
         self._input_shape = input_shape
         self._body = body
         self._device = device

@@ -4,9 +4,10 @@ import torch.nn.functional as F
 
 import numpy as np
 
-from .BaseNetwork import BaseNetwork
-from .NoisyLinear import NoisyLinear
-from .FullyConnectedNetwork import FullyConnectedNetwork
+from torchdrl.neural_modules.NoisyLinear import NoisyLinear
+
+from torchdrl.neural_networks.BaseNetwork import BaseNetwork
+from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
 
 class NoisyDuelingCategoricalNetwork(BaseNetwork):
     def __init__(self, atom_size, support, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, body=None, device="cpu"):
