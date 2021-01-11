@@ -1,86 +1,103 @@
 import os
 import math
 import torch
+import torch.optim as optim
 import random
 import numpy as np
-
-from torchdrl.data_structures import Shared
+import gym
 
 from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
 from torchdrl.data_structures.UniformExperienceReplay import UniformExperienceReplay
 from torchdrl.data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
 from torchdrl.representations.Plotter import Plotter
 
+
+# TODO clean things up. lets get this streamlined.
 class BaseAgent(object):
-    def __init__(self, config):
-        self._config = config
+    def __init__(self, env, **kwargs):
+        self._env = env
+        self._kwargs = kwargs
+        self._hyperparameters = self._kwargs['hyperparameters']
 
-        self._name = config['name']
-        self._env = config['env']
-        self._seed = config['seed']
-        self._enable_seed = config['enable_seed']
+        self._name = self._kwargs['name']
 
-        if self._enable_seed:
-            np.random.seed(self._seed)
-            random.seed(self._seed)
-            torch.manual_seed(self._seed)
-            self._env.seed(self._seed)
+        self._checkpoint_episode_frequency = self._kwargs['checkpoint_episode_frequency']
+        self._checkpoint_root = self._kwargs['checkpoint_root']
+        self._checkpoint_max_num = self._kwargs['checkpoint_max_num']
+
+        self._device = self._kwargs['device']
+
+        if self._kwargs['log']:
+            self._plotter = Plotter()
+        self._show_log = self._kwargs['show_log']
+        self._show_log_frequency = self._kwargs['show_log_frequency']
+
+        self._reward_goal = self._kwargs['reward_goal']
+        self._reward_window = self._kwargs['reward_window']
+
+        seed = self._kwargs['seed']
+        if seed >= 0:
+            np.random.seed(seed)
+            random.seed(seed)
+            torch.manual_seed(seed)
+            self._env.seed(seed)
+
+        self._visualize = self._kwargs['visualize']
+        self._visualize_frequency = self._kwargs['visualize_frequency']
+
+        self._warm_up = self._kwargs['warm_up']
+
+        self._max_steps = self._kwargs['max_steps']
+        self._max_episode = self._kwargs['max_episodes']
 
         self._action_type = "DISCRETE" if self._env.action_space.dtype == np.int64 else "CONTINUOUS"
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
-        self._input_shape = self._env.observation_space.shape
-        self._checkpoint_frequency = config['checkpoint_frequency']
-
-        self._warm_up = config['warm_up']
-        self._max_steps = config['max_steps']
-        self._reward_goal = config["reward_goal"]
-        self._reward_window = config["reward_window"] # how much to average the score over
+        
         self._episode_score = 0
-        self._episode_scores = [0 for i in range(100)]
+        self._episode_scores = []
         self._episode_mean_score = 0
         self._episode = 0
         self._best_score = float("-inf")
         self._prev_best_mean_score = float("-inf")
         self._best_mean_score = float("-inf")
-        self._visualize = config["visualize"]
-        self._visualize_frequency = config['visualize_frequency'] # how many episodes
 
         # begin defining all shared hyperparamters
-        self._hyperparameters = config['hyperparameters']
         self._gamma = self._hyperparameters['gamma']
         self._n_steps = self._hyperparameters['n_steps']
         self._batch_size = self._hyperparameters['batch_size']
+        
 
+        # assumed that a object will be input
+        if isinstance(self._env.observation_space, (gym.spaces.Tuple, gym.spaces.Dict)):
+            input_shape = object
+            print("BaseAgent, line 73: object")
+            # for sp in self._env.observation_space:
+            #     if type(sp) is gym.spaces.Discrete:
+            #         input_shape.append([sp.n,])
+            #     else:
+            #         input_shape.append(sp.shape)
+        else:
+            input_shape = self._env.observation_space.shape
+            print("BaseAgent, line 81: shape")
 
-        # TODO streamline this from the config and remove the 
-        # TODO memory declaration from the apex version
-        # if this is an Ape-X agent, don't do this
-        # because Ape-X will use a shared memory
-        memory_size = self._hyperparameters['memory_size']
-        if 'apex_parameters' not in self._config:
-            self._device = config['device']
-            memory_type = self._hyperparameters['memory_type']
-            # memory
-            if memory_type == "PER":
-                alpha = self._hyperparameters['alpha']
-                beta = self._hyperparameters['beta']
-                # TODO remove priority ep?
-                priority_epsilon = self._hyperparameters['priority_epsilon'] 
-                self._memory = PrioritizedExperienceReplay(memory_size, self._input_shape, alpha=alpha, beta=beta)
-            else:
-                # TODO change to experience replay and add in random sampling line UER
-                self._memory = UniformExperienceReplay(memory_size, self._input_shape)
+        memory_type = self._hyperparameters['memory_type']
+        memory_kwargs = self._hyperparameters['memory_kwargs']
+        memory_size = memory_kwargs['memory_size']
+        if memory_type == "PER":
+            alpha = memory_kwargs['alpha'] if 'alpha' in memory_kwargs else 0.5
+            beta = memory_kwargs['beta'] if 'beta' in memory_kwargs else 0.4
+            self._memory = PrioritizedExperienceReplay(memory_size, input_shape, alpha=alpha, beta=beta)
+        else:
+            self._memory = ExperienceReplay(memory_size, input_shape)
 
         if self._n_steps > 1:
-            self._memory_n_step = ExperienceReplay(memory_size, self._input_shape, self._n_steps, self._gamma)
-
-        if self._config['log']:
-            self._plotter = Plotter()
+            self._memory_n_step = ExperienceReplay(memory_size, input_shape, self._n_steps, self._gamma)
+        else:
+            self._memory_n_step = None
 
         self._steps = 0
         self._total_steps = 0
         self._done_training = False
-
             
     def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
         for episode_info in self.Train(num_episodes, num_steps):
@@ -137,9 +154,6 @@ class BaseAgent(object):
             
             episode_info.update(info)
 
-            if self._episode % self._checkpoint_frequency == 0 and self._best_score > self._prev_best_mean_score:
-                self.Checkpoint()
-
             yield episode_info
         
         # finished training save self.
@@ -167,6 +181,9 @@ class BaseAgent(object):
 
             episode_info = {"eval": True, "agent_name": self._name, "episode": i, "steps": steps, "episode_score": round(episode_score, 2), "mean_score": round(episode_mean_score, 2), "best_score": round(best_score, 2), "total_steps": total_steps}
             episode_info.update(info)
+            
+            if self._episode % self._checkpoint_episode_frequency == 0 and self._best_score > self._prev_best_mean_score:
+                self.Checkpoint()
 
             yield episode_info
 
@@ -174,7 +191,7 @@ class BaseAgent(object):
         raise NotImplementedError("Error must implement the Calculate Loss function")
 
     def PlayEpisode(self):
-        raise NotImplementedError("Agent must implement the Step function")
+        raise NotImplementedError("Agent must implement the PlayEpisode function")
 
     def Act(self):
         raise NotImplementedError("Agent must implement the Act function")
@@ -190,16 +207,15 @@ class BaseAgent(object):
         if not os.path.exists(folderpath):
             os.mkdir(folderpath)
 
-        
         list_of_files = os.listdir(folderpath)
-        if len(list_of_files) >= self._config['checkpoint_max_num']:
+        if len(list_of_files) >= self._checkpoint_max_num:
             full_path = [folderpath + "/{0}".format(x) for x in list_of_files]
 
             oldest_file = min(full_path, key=os.path.getctime)
             os.remove(oldest_file)
     
     def Checkpoint(self):
-        folderpath = self._config['checkpoint_root'] + "/" + self._name
+        folderpath = self._checkpoint_root + "/" + self._name
         filename = "episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + ".pt"
         self.Save(folderpath, filename)
 
@@ -225,10 +241,25 @@ class BaseAgent(object):
             tensors = tensors + (torch.tensor(array_np, device=self._device),)
         return tensors
 
+    # TODO converting objects into tensors... (this is gonna be a tough one)
+    # Maybe the same way I am doing for acting???
     def ConvertNPMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np):
-        states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
+        if states_np.dtype == np.object:
+            states_t = [] 
+            for state in states_np:
+                for val in state:
+                    state_t = torch.tensor(val, dtype=torch.float32, device=self._device).unsqueeze(0)
+                    states_t.append(state_t)
+
+            next_states_t = []
+            for next_state in next_states_np:
+                for val in next_state:
+                    next_state_t = torch.tensor(val, dtype=torch.float32, device=self._device).unsqueeze(0)
+                    next_states_t.append(next_state_t)            
+        else:
+            states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
+            next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)
         actions_t = torch.tensor(actions_np, dtype=torch.int64, device=self._device)
-        next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)
         rewards_t = torch.tensor(rewards_np.reshape(-1, 1), dtype=torch.float32, device=self._device)
         dones_t = torch.tensor(dones_np.reshape(-1, 1), dtype=torch.int64, device=self._device)
 
@@ -246,5 +277,6 @@ class BaseAgent(object):
             for from_param, to_param in zip(from_net.parameters(), to_net.parameters()):
                 to_param.data.copy_(tau*from_param.data + (1.0-tau) * to_param.data)
         
-
-            
+    def CreateOptimizer(self, optimizer, network_params, optimizer_args):
+        if optimizer.lower() == "adam":
+            return optim.Adam(network_params, **optimizer_args)

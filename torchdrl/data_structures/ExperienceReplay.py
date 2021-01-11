@@ -7,7 +7,7 @@ class ExperienceReplay:
     def __init__(
         self, 
         capacity:int, 
-        input_shape:(tuple, list),
+        input_shape:(tuple, list, object),
         n_step:int=3,
         gamma:float=0.99
     ):
@@ -17,9 +17,14 @@ class ExperienceReplay:
         self._pointer = 0
         self._size = 0
 
-        self._states = np.zeros([self._capacity, *input_shape], dtype=np.float32)
+        if type(input_shape) != object:
+            self._states = np.zeros([self._capacity, *input_shape], dtype=np.float32)
+            self._next_states = np.zeros([self._capacity, *input_shape], dtype=np.float32)
+        else:
+            self._states = np.zeros(self._capacity, dtype=object)
+            self._next_states = np.zeros(self._capacity, dtype=object)
+
         self._actions = np.zeros(self._capacity, dtype=np.float32)
-        self._next_states = np.zeros([self._capacity, *input_shape], dtype=np.float32)
         self._rewards = np.zeros(self._capacity, dtype=np.float32)
         self._dones = np.zeros(self._capacity, dtype=np.int64)
 
@@ -50,6 +55,19 @@ class ExperienceReplay:
 
         return experience
 
+    def Sample(self, batch_size):
+        indices_np = np.random.choice(self._size, batch_size, replace=False)
+
+        states_np = self._states[indices_np]
+        actions_np = self._actions[indices_np]
+        next_states_np = self._next_states[indices_np]
+        rewards_np = self._rewards[indices_np]
+        dones_np = self._dones[indices_np]
+
+        weights_np = np.ones(batch_size)
+
+        return states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np
+    
     def SampleBatch(self, batch_size):
         indices = np.random.choice(self._size, size=batch_size, replace=False)
 
@@ -93,4 +111,8 @@ class ExperienceReplay:
 
     def __len__(self):
         return self._size
+
+    # just do nothing because PER requires this and having checks is more cpu than running nothing.
+    def BatchUpdate(self, indices, errors):
+        pass
 

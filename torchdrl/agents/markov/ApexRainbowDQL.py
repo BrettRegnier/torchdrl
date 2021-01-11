@@ -12,11 +12,9 @@ from torch.nn.utils import clip_grad_norm_
 
 import numpy as np
 
-from .BaseAgent import BaseAgent
+from torchdrl.agents.markov.BaseAgent import BaseAgent
+from torchdrl.agents.markov.RainbowDQL import RainbowDQL
 
-from .RainbowDQL import RainbowDQL
-
-from torchdrl.neural_networks.NoisyDuelingCategoricalNetwork import NoisyDuelingCategoricalNetwork
 from torchdrl.representations.Plotter import Plotter
 
 from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
