@@ -1,13 +1,12 @@
-import torch
 import torch.nn as nn
 
 import numpy as np
 
-from .BaseNetwork import BaseNetwork
+from torchdrl.neural_networks.BaseNetwork import BaseNetwork
 
 class FullyConnectedNetwork(BaseNetwork):
-    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, body=None, device="cpu"):
-        super(FullyConnectedNetwork, self).__init__(input_shape, body, device)
+    def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, bodies:list=[], device="cpu"):
+        super(FullyConnectedNetwork, self).__init__(input_shape, bodies, device)
 
         if type(n_actions) is not int:
             raise AssertionError("n_actions must be of type int")
@@ -50,8 +49,6 @@ class FullyConnectedNetwork(BaseNetwork):
 
         self._net = nn.Sequential(*net)
         self.to(self._device)
-
-        self._CalculateOutputSize()
 
     def forward(self, state):
         if self._body:

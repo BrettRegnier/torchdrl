@@ -6,17 +6,15 @@ from torchdrl.neural_modules.Flatten import Flatten
 from torchdrl.neural_networks.BaseNetwork import BaseNetwork
 
 class ConvolutionNetwork2D(BaseNetwork):
-    def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, activations:list, pools:list, flatten: bool):
-        super(ConvolutionNetwork2D, self).__init__(input_shape)
-
-        self._input_shape = input_shape
+    def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, activations:list, pools:list, flatten: bool, bodies:list=[], device="cpu"):
+        super(ConvolutionNetwork2D, self).__init__(input_shape, bodies, device)
 
         channels = input_shape[0]
-        if channels <= 0:
-            raise AssertionError("Number of channels must be at least 1")
-
         num_filters = len(filters)
-        if num_filters <= 0:
+
+        if not input_shape and channels <= 0:
+            raise AssertionError("Number of channels must be at least 1")
+        if not filters:
             raise AssertionError("Number of filters needs to be greater than 0")
         
         if len(kernels) != num_filters or len(strides) != num_filters or len(paddings) != num_filters:
@@ -30,41 +28,59 @@ class ConvolutionNetwork2D(BaseNetwork):
         self.AssertParameter(paddings, "paddings", int, min_value=0)
 
         convos = []
-        convos.append(nn.Conv2d(channels, filters[0], kernels[0], strides[0], padding=paddings[0]))
-        if len(activations) > 0 and activations[0] is not None:
+        features_in = channels
+        features_out = filters[0]
+
+        kernel = 1
+        stride = 1
+        padding = 0
+
+        if kernels:
+            kernel = kernels[0]
+        if strides:
+            stride = strides[0]
+        if paddings:
+            padding = paddings[0]
+
+        convos.append(nn.Conv2d(features_in, features_out, kernel, stride, padding=padding))
+
+        if activations:
             convos.append(self.GetActivation(activations[0]))
-        if len(pools) > 0 and pools[0] is not None:
-            convos.append(nn.MaxPool2d(pools[0]))
+        if pools:
+            convos.append(nn.MaxPool1d(pools[0]))
         
         for i in range(1, len(filters)):
-            convos.append(nn.Conv2d(filters[i-1], filters[i], kernels[i], strides[i], padding=paddings[i]))
-            if len(activations) > i and activations[i] is not None:
+            features_in = features_out
+            features_out = filters[i]
+
+            kernel = 1
+            stride = 1
+            padding = 0
+
+            if kernels:
+                kernel = kernels[i]
+            if strides:
+                stride = strides[i]
+            if paddings:
+                padding = paddings[i]
+
+            convos.append(nn.Conv2d(features_in, features_out, kernel, stride, padding=padding))
+
+            if activations:
                 convos.append(self.GetActivation(activations[i]))
-            if len(pools) > i and pools[i] is not None:
-                convos.append(nn.MaxPool2d(pools[i]))
+            if pools:
+                convos.append(nn.MaxPool1d(pools[i]))
 
         if flatten:
-            convos.append(Flatten())
+            convos.append(Flatten())        
             
         # initialize weights
         for layer in convos:
-            if type(layer) == nn.Conv2d:
+            if type(layer) == nn.Conv1d:
                 nn.init.xavier_uniform_(layer.weight)
             
         self._net = nn.Sequential(*convos)
-        self._net_list = convos
-
-        out = self.forward(torch.zeros(1, *self._input_shape))
-        self._output_size = (int(np.prod(out.size())),)
+        self.to(self._device)
 
     def forward(self, state):
         return self._net(state)
-
-# x = ConvolutionNetwork((2, 3, 3), [2], [1], [1], [0], ["relu"], [], True)
-# out = x(torch.zeros(1, *[2, 3, 3]))
-# print(x)
-# print(out)
-# print(out.size())
-# out = torch.mean(out)
-# print(out)
-# out.backward()

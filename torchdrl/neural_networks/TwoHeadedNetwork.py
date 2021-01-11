@@ -5,9 +5,10 @@ import torch.optim as optim
 
 import numpy as np
 
-from .BaseNetwork import BaseNetwork
-from .FullyConnectedNetwork import FullyConnectedNetwork
-from .ConvolutionNetwork1D import ConvolutionNetwork1D
+from torchdrl.neural_networks.BaseNetwork import BaseNetwork
+
+from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
+from torchdrl.neural_networks.ConvolutionNetwork1D import ConvolutionNetwork1D
 
 class TwoHeadedNetwork(BaseNetwork):
     def __init__(self, input_shape:tuple, head1_output:int, head2_output:int, hidden_layers:list, activations:list, final_activation: str, convo=None):

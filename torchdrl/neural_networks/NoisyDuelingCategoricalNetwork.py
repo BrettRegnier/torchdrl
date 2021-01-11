@@ -10,7 +10,7 @@ from torchdrl.neural_networks.BaseNetwork import BaseNetwork
 from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
 
 class NoisyDuelingCategoricalNetwork(BaseNetwork):
-    def __init__(self, atom_size, support, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, body=None, device="cpu"):
+    def __init__(self, atom_size, support, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, body:list=[], device="cpu"):
         super(NoisyDuelingCategoricalNetwork, self).__init__(input_shape, body, device)
 
         self._support = support
@@ -32,8 +32,6 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
         self._adv = nn.Sequential(*adv_net)
         self._val = nn.Sequential(*val_net)
         self.to(self._device)
-
-        self._CalculateOutputSize()
 
     def CreateNetList(self, input_shape, n_actions, hidden_layers, activations, dropouts, final_activation):
         net = []

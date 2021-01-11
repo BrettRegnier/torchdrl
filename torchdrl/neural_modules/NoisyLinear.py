@@ -5,8 +5,6 @@ import torch.nn.functional as F
 
 import numpy as np
 
-from .BaseNetwork import BaseNetwork
-
 # Retrieved from
 # https://github.com/higgsfield/RL-Adventure/blob/master/common/layers.py
 

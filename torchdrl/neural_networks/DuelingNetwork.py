@@ -1,13 +1,13 @@
 import torch.nn as nn
 
-from .BaseNetwork import BaseNetwork
-from .FullyConnectedNetwork import FullyConnectedNetwork
+from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
+from torchdrl.neural_networks.BaseNetwork import BaseNetwork
 
+
+# TODO update this
 class DuelingNetwork(BaseNetwork):
     def __init__(self, input_shape:tuple, n_actions:int, hidden_layers:list, activations:list, dropouts:list, final_activations:str, convo=None):
         super(DuelingNetwork, self).__init__(input_shape)
-
-        self._n_actions = n_actions
 
         if type(n_actions) is not int:
             raise AssertionError("n_actions must be of type int")
@@ -18,30 +18,44 @@ class DuelingNetwork(BaseNetwork):
         self.AssertParameter(activations, "activations", str, -1)
         self.AssertParameter(dropouts, "dropouts", float, 0)
 
-        if (hidden_layers > 1):
-            # scrape one layer off for the advantage and value layers
-            prev_layer = hidden_layers[-2:][0]
-            last_layer = hidden_layers[-1:][0]
-            hidden_layers = hidden_layers[-1:]
+        adv_net = self.CreateNetList(input_shape, n_actions, hidden_layers, activations, dropouts, final_activation)
+        val_net = self.CreateNetList(input_shape, 1, hidden_layers, activations, dropouts, final_activation)
 
-            last_activation = (activations[-1:])[0]
-            activations= activations[-1:]
+        self._adv = nn.Sequential(adv_net)
+        self._val = nn.Sequential(val_net)
 
-            self._net = FullyConnectedNetwork(input_shape, last_layer, hidden_layers, activations, dropouts, last_activation, convo)
-        # else:
-        #     prev_layer = np.prod(input_shape
+    def CreateNetList(self, input_shape, n_actions, hidden_layers, activations, dropouts, final_activation):
+        net = []
 
-        self._adv = nn.Sequential(
-            nn.Linear(prev_layer, last_layer),
-            nn.ReLU(),
-            nn.Linear(last_layer, n_actions)
-        )
-        self._val = nn.Sequential(
-            nn.Linear(prev_layer, last_layer),
-            nn.ReLU(),
-            nn.Linear(last_layer, 1)
-        )
-        
+        in_features = int(np.prod(input_shape))
+        if hidden_layers:
+            out_features = hidden_layers[0]
+
+            net.append(NoisyLinear(in_features, out_features))
+            if activations:
+                net.append(self.GetActivation(activations[0]))
+            if dropouts:
+                net.append(nn.Dropout(dropouts[0]))
+
+            for i in range(1, len(hidden_layers)):
+                in_features = out_features
+                out_features = hidden_layers[i]
+
+                net.append(NoisyLinear(in_features, out_features))
+                if activations and len(activations) > i:
+                    net.append(self.GetActivation(activations[i]))
+                if dropouts and len(dropouts) > i:
+                    net.append(nn.Dropout(dropouts[i]))
+            in_features = out_features
+            
+        out_features = n_actions
+        net.append(NoisyLinear(in_features, out_features))
+
+        if final_activation is not None:
+            net.append(self.GetActivation(final_activation))
+
+        return net
+
     def forward(self, state):
         x = self._net(state)
 

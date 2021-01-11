@@ -4,15 +4,21 @@ import numpy as np
 
 # TODO add a parameter onto this such that it takes in a body as a parameter.
 class BaseNetwork(nn.Module):
-    def __init__(self, input_shape:tuple, body=None, device='cpu'):
+    def __init__(self, input_shape:tuple, body:list=None, device='cpu'):
         super(BaseNetwork, self).__init__()
-        
-        assert body is not None and issubclass(type(body), BaseNetwork) 
+
         assert isinstance(input_shape, (list, tuple, np.ndarray))
         
-        self._input_shape = input_shape
+        if body is not None:
+            assert issubclass(type(body), BaseNetwork)
         self._body = body
-        self._device = device
+        
+        if not body:
+            self._input_shape = input_shape
+        else:
+            self._input_shape = self._body.OutputSize
+
+        self._device = device     
 
     def AssertParameter(self, param, name, dtype, min_value=1):
         for x in param:
@@ -49,17 +55,20 @@ class BaseNetwork(nn.Module):
     def NetList(self):
         return self._net_list
 
-    @property
     def OutputSize(self):
-        return self._output_size
-    
-    def _CalculateOutputSize(self):
-        input_shape = self._InputShape()
+        input_shape = self.InputShape()
 
-        out = self.forward(torch.zeros(1, *input_shape, device=self._device))
-        self._output_size = (int(np.prod(out.size())),)
+        if type(input_shape) is list:
+            in_features = []
+            for shape in input_shape:
+                in_features.append(torch.zeros(1, *shape, device=self._device))
+        else:
+            in_features = torch.zeros(1, *input_shape, device=self._device)   
+        out = self.forward(in_features)
+        return (int(np.prod(out.size())),)
 
-    def _InputShape(self):
+    def InputShape(self):
         if self._body:
-            return self._body._InputShape()
+            # recursive call
+            return self._body.InputShape()
         return self._input_shape

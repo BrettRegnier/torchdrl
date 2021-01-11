@@ -1,14 +1,12 @@
-import torch
 import torch.nn as nn
 import numpy as np
 
 from torchdrl.neural_modules.Flatten import Flatten
-
 from torchdrl.neural_networks.BaseNetwork import BaseNetwork
 
 class ConvolutionNetwork1D(BaseNetwork):
-    def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, activations:list, pools:list, flatten: bool, body=None, device="cpu"):
-        super(ConvolutionNetwork1D, self).__init__(input_shape, body, device)
+    def __init__(self, input_shape:tuple, filters:list, kernels: list, strides:list, paddings: list, activations:list, pools:list, flatten: bool, bodies:list=[], device="cpu"):
+        super(ConvolutionNetwork1D, self).__init__(input_shape, bodies, device)
 
         channels = input_shape[0]
         num_filters = len(filters)
@@ -72,10 +70,6 @@ class ConvolutionNetwork1D(BaseNetwork):
             if pools:
                 convos.append(nn.MaxPool1d(pools[i]))
 
-        # TODO
-        # if final_activation is not None:
-        #     net.append(self.GetActivation(final_activation))
-
         if flatten:
             convos.append(Flatten())        
             
@@ -86,8 +80,6 @@ class ConvolutionNetwork1D(BaseNetwork):
             
         self._net = nn.Sequential(*convos)
         self.to(self._device)
-
-        self._CalculateOutputSize()
 
     def forward(self, state):
         return self._net(state)
