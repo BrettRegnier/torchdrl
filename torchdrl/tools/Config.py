@@ -1,7 +1,7 @@
 import json
 import os
 
-def Save(filepath, config, ext=".txt"):
+def Save(filepath, config, ext=".json"):
     last_slash = 0
     for i in range(len(filepath)):
         if filepath[i] == "/":
@@ -17,7 +17,7 @@ def Save(filepath, config, ext=".txt"):
 
     json.dump(config, open(filepath, "w"), indent=4)
 
-def Load(filepath, ext=".txt"):
+def Load(filepath, ext=".json"):
     if ext not in filepath:
         filepath += ext
     return json.load(open(filepath))
