@@ -7,7 +7,7 @@ class ExperienceReplay:
     def __init__(
         self, 
         capacity:int, 
-        input_shape:(tuple, list, object),
+        input_shape:(tuple, list),
         n_step:int=3,
         gamma:float=0.99
     ):
@@ -16,13 +16,21 @@ class ExperienceReplay:
         self._gamma = gamma
         self._pointer = 0
         self._size = 0
-
-        if type(input_shape) != object:
-            self._states = np.zeros([self._capacity, *input_shape], dtype=np.float32)
-            self._next_states = np.zeros([self._capacity, *input_shape], dtype=np.float32)
+        
+        if any(isinstance(el, (list, tuple)) for el in input_shape):
+            self._n_states = len(input_shape)
+            # self._states = np.zeros(self._capacity, dtype=object)
+            # self._next_states = np.zeros(self._capacity, dtype=object)
         else:
-            self._states = np.zeros(self._capacity, dtype=object)
-            self._next_states = np.zeros(self._capacity, dtype=object)
+            self._n_states = 1
+            input_shape = [input_shape]
+        
+        
+        self._states = []
+        self._next_states = []
+        for i in range(self._n_states):
+            self._states.append(np.zeros([self._capacity, *input_shape[i]], dtype=np.float32))
+            self._next_states.append(np.zeros([self._capacity, *input_shape[i]], dtype=np.float32))
 
         self._actions = np.zeros(self._capacity, dtype=np.float32)
         self._rewards = np.zeros(self._capacity, dtype=np.float32)
@@ -38,10 +46,18 @@ class ExperienceReplay:
             # create an n-step experience
             next_state, reward, done = self._Rollout()
             state, action = self._n_step_buffer[0][:2]
+            
+            if self._n_states > 1:
+                for i in range(self._n_states):
+                    self._states[i][self._pointer] = state[i]
+                    self._next_states[i][self._pointer] = next_state[i]
+            else:
+                self._states[0][self._pointer] = state
+                self._next_states[0][self._pointer] = next_state
 
-            self._states[self._pointer] = state
+            # self._states[self._pointer] = state
             self._actions[self._pointer] = action
-            self._next_states[self._pointer] = next_state
+            # self._next_states[self._pointer] = next_state
             self._rewards[self._pointer] = reward
             self._dones[self._pointer] = done
 
@@ -56,39 +72,32 @@ class ExperienceReplay:
         return experience
 
     def Sample(self, batch_size):
-        indices_np = np.random.choice(self._size, batch_size, replace=False)
+        indices_np = np.random.choice(self._size, size=batch_size, replace=False)
 
-        states_np = self._states[indices_np]
-        actions_np = self._actions[indices_np]
-        next_states_np = self._next_states[indices_np]
-        rewards_np = self._rewards[indices_np]
-        dones_np = self._dones[indices_np]
-
-        weights_np = np.ones(batch_size)
-
-        return states_np, actions_np, next_states_np, rewards_np, dones_np, indices_np, weights_np
-    
-    def SampleBatch(self, batch_size):
-        indices = np.random.choice(self._size, size=batch_size, replace=False)
-
-        weights = np.ones(batch_size, dtype=np.float32)
-
-        return (
-            self._states[indices],
-            self._actions[indices],
-            self._next_states[indices],
-            self._rewards[indices],
-            self._dones[indices],
-            weights,
-            indices
-        )
+        return (self.SampleBatchFromIndices(indices_np), indices_np)
 
     def SampleBatchFromIndices(self, indices):
         weights = np.ones(len(indices), dtype=np.float32)
+        
+        # if self._use_objects:
+        #     states = self._states[indices]
+        #     states_np = np.vstack(states)
+        #     print(states_np)
+        
+        if self._n_states > 1:
+            states = []
+            next_states = []
+            for i in range(self._n_states):
+                states.append(self._states[i][indices])
+                next_states.append(self._next_states[i][indices])
+        else:
+            states = self._states[0][indices]
+            next_states = self._next_states[0][indices]
+        
         return (
-            self._states[indices],
+            states,
             self._actions[indices],
-            self._next_states[indices],
+            next_states,
             self._rewards[indices],
             self._dones[indices],
             weights

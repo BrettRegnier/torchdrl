@@ -66,11 +66,15 @@ class BaseAgent(object):
         self._n_steps = self._hyperparameters['n_steps']
         self._batch_size = self._hyperparameters['batch_size']
         
-
         # assumed that a object will be input
         if isinstance(self._env.observation_space, (gym.spaces.Tuple, gym.spaces.Dict)):
-            input_shape = object
-            print("BaseAgent, line 73: object")
+            input_shape = []
+            for space in self._env.observation_space:
+                try:
+                    input_shape.append(space.shape)
+                except:
+                    input_shape.append(space.n)
+            self._state_is_tuple = True    
             # for sp in self._env.observation_space:
             #     if type(sp) is gym.spaces.Discrete:
             #         input_shape.append([sp.n,])
@@ -78,7 +82,7 @@ class BaseAgent(object):
             #         input_shape.append(sp.shape)
         else:
             input_shape = self._env.observation_space.shape
-            print("BaseAgent, line 81: shape")
+            self._state_is_tuple = False    
 
         memory_type = self._hyperparameters['memory_type']
         memory_kwargs = self._hyperparameters['memory_kwargs']
@@ -244,18 +248,16 @@ class BaseAgent(object):
     # TODO converting objects into tensors... (this is gonna be a tough one)
     # Maybe the same way I am doing for acting???
     def ConvertNPMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np):
-        if states_np.dtype == np.object:
-            states_t = [] 
+        if self._state_is_tuple:
+            states_t = []
             for state in states_np:
-                for val in state:
-                    state_t = torch.tensor(val, dtype=torch.float32, device=self._device).unsqueeze(0)
-                    states_t.append(state_t)
+                state_t = torch.tensor(state, dtype=torch.float32, device=self._device)
+                states_t.append(state_t)
 
             next_states_t = []
             for next_state in next_states_np:
-                for val in next_state:
-                    next_state_t = torch.tensor(val, dtype=torch.float32, device=self._device).unsqueeze(0)
-                    next_states_t.append(next_state_t)            
+                next_state_t = torch.tensor(next_state, dtype=torch.float32, device=self._device)
+                next_states_t.append(next_state_t)            
         else:
             states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
             next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)

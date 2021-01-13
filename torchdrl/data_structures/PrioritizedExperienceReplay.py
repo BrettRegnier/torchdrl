@@ -66,23 +66,14 @@ class PrioritizedExperienceReplay(ExperienceReplay):
             idx = self._sum_tree.Retrieve(value)
             indices.append(idx)
         
-        states = self._states[indices]
-        actions = self._actions[indices]
-        next_states = self._next_states[indices]
-        rewards = self._rewards[indices]
-        dones = self._dones[indices]
+        # states = self._states[indices]
+        # actions = self._actions[indices]
+        # next_states = self._next_states[indices]
+        # rewards = self._rewards[indices]
+        # dones = self._dones[indices]
+        
+        states, actions, next_states, rewards, dones, weights = self.SampleBatchFromIndices(indices)
         indices = np.array(indices, dtype=np.int64)
-
-        weights = []
-        for i in indices:
-            p_min = self._min_priority / self._sum_tree.Total() + self._priority_epsilon
-            max_weight = (p_min * len(self)) ** (-self._beta)
-
-            p_sample = self._sum_tree.Get(i) / self._sum_tree.Total()
-            weight = (p_sample * len(self) + self._priority_epsilon) ** (-self._beta)
-            weight = weight / max_weight
-            weights.append(weight)
-        weights = np.array(weights, dtype=np.float32)
 
         self._beta = np.min([1.0, self._beta + self._beta_inc])
 
@@ -95,10 +86,37 @@ class PrioritizedExperienceReplay(ExperienceReplay):
             weights,
             indices
         )
+        
+    def SampleBatchFromIndices(self, indices):
+        states, actions, next_states, rewards, dones, _ = super().SampleBatchFromIndices(indices)
+        weights = self._CalculateWeights(indices)
+        
+        return (
+            states,
+            actions,
+            next_states,
+            rewards,
+            dones,
+            weights            
+        )
 
     def BatchUpdate(self, indices, errors):
         for idx, error in zip(indices, errors):
             self._sum_tree.UpdatePriority(idx, error)
+            
+    def _CalculateWeights(self, indices):
+        weights = []
+        for i in indices:
+            p_min = self._min_priority / self._sum_tree.Total() + self._priority_epsilon
+            max_weight = (p_min * len(self)) ** (-self._beta)
+
+            p_sample = self._sum_tree.Get(i) / self._sum_tree.Total()
+            weight = (p_sample * len(self) + self._priority_epsilon) ** (-self._beta)
+            weight = weight / max_weight
+            weights.append(weight)
+        
+        weights_np = np.array(weights, dtype=np.float32)
+        return weights_np
 
     def _UpdateBounds(self, priority):
         if priority > self._max_priority:
