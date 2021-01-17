@@ -73,8 +73,8 @@ class ExperienceReplay:
 
     def Sample(self, batch_size):
         indices_np = np.random.choice(self._size, size=batch_size, replace=False)
-
-        return (self.SampleBatchFromIndices(indices_np), indices_np)
+        
+        return self.SampleBatchFromIndices(indices_np) + (indices_np,)
 
     def SampleBatchFromIndices(self, indices):
         weights = np.ones(len(indices), dtype=np.float32)

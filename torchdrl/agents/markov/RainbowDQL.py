@@ -36,9 +36,6 @@ import time
 class RainbowDQL(BaseAgent):
     def __init__(self, env, **kwargs):
         super(RainbowDQL, self).__init__(env, **kwargs)
-        self._target_update = self._hyperparameters['target_update']
-        self._target_update_steps = 0
-
         self._v_min = self._hyperparameters['v_min']
         self._v_max = self._hyperparameters['v_max']
         self._atom_size = self._hyperparameters['atom_size']
@@ -63,145 +60,47 @@ class RainbowDQL(BaseAgent):
 
     def CreateNetwork(self, network_args):
         # dueling noisy
-        ndcn = network_args['noisyduelingcategorical']
+        body, input_shape = self.CreateNetworkBody(network_args)
 
-        input_shape = self._env.observation_space
-        networks = []
-        body = None
-        if isinstance(input_shape, (gym.spaces.Tuple, gym.spaces.Dict)):
-            if 'group' in network_args:
-                for i, (key, values) in enumerate(network_args['group'].items()):
-                    networks.append(NetworkSelectionFactory(
-                        key, input_shape[i].shape, values, device=self._device))
-                body = CombineNetwork(networks, self._device)
-                input_shape = body.OutputSize()
-            else:
-                raise Exception(
-                    "gym tuple/dict detected, requires a grouping of networks")
-        else:
-            input_shape = input_shape.shape
-
-        if 'sequential' in network_args:
-            for i, (key, values) in enumerate(network_args['sequential'].items()):
-                body = NetworkSelectionFactory(
-                    key, input_shape, values, body, device=self._device)
-                input_shape = body.OutputSize()
-
-        return NoisyDuelingCategoricalNetwork(self._atom_size, self._support, input_shape, self._n_actions,
-                                              ndcn["hidden_layers"], ndcn['activations'], ndcn['dropouts'], ndcn['final_activation'], body=body, device=self._device)
+        net = None
+        head = network_args['head']
+        for key, values in network_args['head'].items():
+            values['atom_size'] = self._atom_size
+            values['support'] = self._support
+            values['out_features'] = self._n_actions
+            net = NetworkSelectionFactory(key, input_shape, values, body, device=self._device)
+        
+        return net
 
     def Evaluate(self, episodes=100):
         self._net.eval()
+        
         for episode_info in super().Evaluate(episodes):
             yield episode_info
 
+        self._net.train()
+
     def PlayEpisode(self, evaluate=False):
-        self._steps = 0
-        done = False
-        episode_reward = 0
-        episode_loss = 0
-
-        state = self._env.reset()
-        while self._steps != self._max_steps and not done:
-            # print(self._total_steps, state, len(self._memory))
-            # Noisy - No epsilon
-            action = self.Act(state)
-
-            next_state, reward, done, info = self._env.step(action)
-
-            if not evaluate:
-                transition = (state, action, next_state, reward, done)
-
-                # if (self._total_steps == 28):
-                #     x =  True
-                self.SaveMemory(transition)
-
-                if len(self._memory) >= self._batch_size:
-                    episode_loss += self.Learn()
-
-            episode_reward += reward
-            state = next_state
-
-            self._steps += 1
-            self._total_steps += 1
-
-        return episode_reward, self._steps, episode_loss, info
+        episode_reward, steps, episode_loss, info = super().PlayEpisode(evaluate)
+            
+        return episode_reward, steps, episode_loss, info
 
     @torch.no_grad()
     def Act(self, state):
-        # Noisy - No random action by dqn
-        if isinstance(state, object) and not isinstance(state, np.ndarray):
-            states_t = []
-            for val in state:
-                state_t = torch.tensor(val, dtype=torch.float32,
-                               device=self._device).unsqueeze(0).detach()
-                states_t.append(state_t)
-        else:
-            states_t = torch.tensor(state, dtype=torch.float32,
-                                device=self._device).detach()
-            states_t = states_t.unsqueeze(0)
+        # noisy no epsilon
+        states_t = self.ConvertStateToTensor(state)
 
         q_values = self._net(states_t)
         action = q_values.argmax().item()
 
         return action
 
-    def SaveMemory(self, transition):
-        if self._memory_n_step:
-            transition = self._memory_n_step.Append(*transition)
-
-        if transition:
-            self._memory.Append(*transition)
-
     def Learn(self):
-        states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t = self.SampleMemoryT(
-            self._batch_size)
-
-        # get errors
-        errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t,
-                                      dones_t, indices_np, weights_t, self._batch_size, self._gamma)
-
-        weights_t = weights_t.reshape(-1, 1)
-        # Prioritized Experience Replay weight importancing
-        loss = torch.mean(errors * weights_t)
-
-        # n-step learning with one-step to prevent high-variance
-        if self._memory_n_step:
-            gamma = self._gamma ** self._n_steps
-            states_np, actions_np, next_states_np, rewards_np, dones_np, _ = self._memory_n_step.SampleBatchFromIndices(
-                indices_np)
-            states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(
-                states_np, actions_np, next_states_np, rewards_np, dones_np)
-            errors_n = self.CalculateErrors(
-                states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._batch_size, gamma)
-            errors += errors_n
-
-            loss = torch.mean(errors * weights_t)
-
-        self._optimizer.zero_grad()
-        loss.backward()
-        clip_grad_norm_(self._net.parameters(), 10.0)
-        self._optimizer.step()
-
-        # TODO change if needed
-        # hard update target for now
-        if self._target_update_steps % self._target_update == 0:
-            self._target_net.load_state_dict(self._net.state_dict())
-            self._target_update_steps = 0
-
-        self._target_update_steps += 1
-
+        loss = self.Update()
+        
         # Noisy
         self._net.ResetNoise()
         self._target_net.ResetNoise()
-
-        # Prioritized Experience Replay
-        updated_priorities = errors.detach().cpu().numpy()
-        # print(indices_np)
-        # if self._total_steps == 35:
-        #     exit()
-        self._memory.BatchUpdate(indices_np, updated_priorities)
-
         return loss.detach().cpu().numpy()
 
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):

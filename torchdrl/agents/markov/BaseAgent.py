@@ -1,16 +1,18 @@
 import os
 import math
-import torch
-import torch.optim as optim
 import random
 import numpy as np
 import gym
 
+import torch
+import torch.optim as optim
+from torch.nn.utils import clip_grad_norm_
+
 from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
 from torchdrl.data_structures.UniformExperienceReplay import UniformExperienceReplay
 from torchdrl.data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
+from torchdrl.tools.NeuralNetworkFactory import *
 from torchdrl.representations.Plotter import Plotter
-
 
 # TODO clean things up. lets get this streamlined.
 class BaseAgent(object):
@@ -62,9 +64,13 @@ class BaseAgent(object):
         self._best_mean_score = float("-inf")
 
         # begin defining all shared hyperparamters
+        self._batch_size = self._hyperparameters['batch_size']
+        self._clip_grad = self._hyperparameters['clip_grad']
         self._gamma = self._hyperparameters['gamma']
         self._n_steps = self._hyperparameters['n_steps']
-        self._batch_size = self._hyperparameters['batch_size']
+        self._target_update = self._hyperparameters['target_update']
+        self._target_update_steps = 0
+        self._tau = self._hyperparameters['tau']
         
         # assumed that a object will be input
         if isinstance(self._env.observation_space, (gym.spaces.Tuple, gym.spaces.Dict)):
@@ -74,12 +80,7 @@ class BaseAgent(object):
                     input_shape.append(space.shape)
                 except:
                     input_shape.append(space.n)
-            self._state_is_tuple = True    
-            # for sp in self._env.observation_space:
-            #     if type(sp) is gym.spaces.Discrete:
-            #         input_shape.append([sp.n,])
-            #     else:
-            #         input_shape.append(sp.shape)
+            self._state_is_tuple = True
         else:
             input_shape = self._env.observation_space.shape
             self._state_is_tuple = False    
@@ -102,6 +103,31 @@ class BaseAgent(object):
         self._steps = 0
         self._total_steps = 0
         self._done_training = False
+        
+    def CreateNetworkBody(self, network_args):
+        input_shape = self._env.observation_space
+        body = None
+        networks = []
+        if isinstance(input_shape, (gym.spaces.Tuple, gym.spaces.Dict)):
+            if 'group' in network_args:
+                for i, (key, values) in enumerate(network_args['group'].items()):
+                    networks.append(NetworkSelectionFactory(
+                        key, input_shape[i].shape, values, device=self._device))
+                body = CombineNetwork(networks, self._device)
+                input_shape = body.OutputSize()
+            else:
+                raise Exception(
+                    "gym tuple/dict detected, requires a grouping of networks")
+        else:
+            input_shape = input_shape.shape
+
+        if 'sequential' in network_args:
+            for i, (key, values) in enumerate(network_args['sequential'].items()):
+                body = NetworkSelectionFactory(
+                    key, input_shape, values, body, device=self._device)
+                input_shape = body.OutputSize()
+                
+        return body, input_shape
             
     def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
         for episode_info in self.Train(num_episodes, num_steps):
@@ -131,6 +157,7 @@ class BaseAgent(object):
 
         mean_score = 0
         while self._episode < num_episodes and self._total_steps < num_steps and not self._done_training:
+            self._episode += 1
             episode_score, steps, episode_loss, info = self.PlayEpisode(evaluate=False)
 
             self._episode_scores.append(episode_score)
@@ -144,7 +171,6 @@ class BaseAgent(object):
             if self._episode_mean_score >= self._reward_goal:
                 self._done_training = True
             
-            self._episode += 1
 
             episode_info = {}
             episode_info['agent_name'] = self._name
@@ -191,11 +217,92 @@ class BaseAgent(object):
 
             yield episode_info
 
+    def PlayEpisode(self, evaluate=False):
+        self._steps = 0
+        done = False
+        episode_reward = 0
+        episode_loss = 0
+
+        state = self._env.reset()
+        while self._steps != self._max_steps and not done:
+            # Noisy - No epsilon
+            action = self.Act(state)
+
+            next_state, reward, done, info = self._env.step(action)
+
+            if not evaluate:
+                transition = (state, action, next_state, reward, done)
+
+                self.SaveMemory(transition)
+
+                if len(self._memory) >= self._batch_size:
+                    episode_loss += self.Learn()
+                    
+            if self._visualize:
+                if self._episode % self._visualize_frequency == 0:
+                    self._env.render()
+                    
+            episode_reward += reward
+            state = next_state
+
+            self._steps += 1
+            self._total_steps += 1
+
+        self._env.close()
+        return episode_reward, self._steps, episode_loss, info
+
+    def SaveMemory(self, transition):
+        if self._memory_n_step:
+            transition = self._memory_n_step.Append(*transition)
+
+        if transition:
+            self._memory.Append(*transition)
+            
+    def Update(self):
+        states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t = self.SampleMemoryT(
+            self._batch_size)
+
+        # get errors
+        errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t,
+                                      dones_t, indices_np, weights_t, self._batch_size, self._gamma)
+
+        weights_t = weights_t.reshape(-1, 1)
+        # Prioritized Experience Replay weight importancing
+        loss = torch.mean(errors * weights_t)
+
+        # n-step learning with one-step to prevent high-variance
+        if self._memory_n_step:
+            gamma = self._gamma ** self._n_steps
+            states_np, actions_np, next_states_np, rewards_np, dones_np, _ = self._memory_n_step.SampleBatchFromIndices(
+                indices_np)
+            states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(
+                states_np, actions_np, next_states_np, rewards_np, dones_np)
+            errors_n = self.CalculateErrors(
+                states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._batch_size, gamma)
+            errors += errors_n
+
+            loss = torch.mean(errors * weights_t)
+
+        self._optimizer.zero_grad()
+        loss.backward()
+        if self._clip_grad > -1:
+            clip_grad_norm_(self._net.parameters(), self._clip_grad)
+        self._optimizer.step()
+        
+        if self._target_update_steps % self._target_update == 0:
+            self._target_net.load_state_dict(self._net.state_dict(), self._tau)
+            self._target_update_steps = 0
+
+        self._target_update_steps += 1
+        
+        # for PER
+        updated_priorities = errors.detach().cpu().numpy()
+        self._memory.BatchUpdate(indices_np, updated_priorities)
+        
+        return loss
+
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
         raise NotImplementedError("Error must implement the Calculate Loss function")
-
-    def PlayEpisode(self):
-        raise NotImplementedError("Agent must implement the PlayEpisode function")
 
     def Act(self):
         raise NotImplementedError("Agent must implement the Act function")
@@ -237,16 +344,11 @@ class BaseAgent(object):
         states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPWeightedMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
         return states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t
 
-    def GenericConvertNPMemoryToTensor(self, *arrays_np):
-        tensors = ()
-
-        for array_np in arrays_np:
-            x = (torch.tensor(array_np, device=self._device),)
-            tensors = tensors + (torch.tensor(array_np, device=self._device),)
-        return tensors
-
-    # TODO converting objects into tensors... (this is gonna be a tough one)
-    # Maybe the same way I am doing for acting???
+    def ConvertNPWeightedMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np):
+        weights_t = torch.tensor(weights_np, dtype=torch.float32, device=self._device)
+        states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np)
+        return states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t
+        
     def ConvertNPMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np):
         if self._state_is_tuple:
             states_t = []
@@ -261,17 +363,27 @@ class BaseAgent(object):
         else:
             states_t = torch.tensor(states_np, dtype=torch.float32, device=self._device)
             next_states_t = torch.tensor(next_states_np, dtype=torch.float32, device=self._device)
+            
         actions_t = torch.tensor(actions_np, dtype=torch.int64, device=self._device)
         rewards_t = torch.tensor(rewards_np.reshape(-1, 1), dtype=torch.float32, device=self._device)
         dones_t = torch.tensor(dones_np.reshape(-1, 1), dtype=torch.int64, device=self._device)
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
 
-    def ConvertNPWeightedMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np):
-        weights_t = torch.tensor(weights_np, dtype=torch.float32, device=self._device)
-        states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np)
-        return states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t
-
+    def ConvertStateToTensor(self, state):
+        if isinstance(state, object) and not isinstance(state, np.ndarray):
+            states_t = []
+            for val in state:
+                state_t = torch.tensor(val, dtype=torch.float32,
+                               device=self._device).unsqueeze(0).detach()
+                states_t.append(state_t)
+        else:
+            states_t = torch.tensor(state, dtype=torch.float32,
+                                device=self._device).detach()
+            states_t = states_t.unsqueeze(0)
+            
+        return states_t
+        
     def UpdateNetwork(self, from_net, to_net, tau=1.0):
         if tau == 1.0:
             to_net.load_state_dict(from_net.state_dict())
