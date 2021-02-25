@@ -11,12 +11,14 @@ from torch.nn.utils import clip_grad_norm_
 from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
 from torchdrl.data_structures.UniformExperienceReplay import UniformExperienceReplay
 from torchdrl.data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
+
+from torchdrl.neural_networks.CombineNetwork import CombineNetwork
 from torchdrl.tools.NeuralNetworkFactory import *
 from torchdrl.representations.Plotter import Plotter
 
 # TODO clean things up. lets get this streamlined.
 class BaseAgent(object):
-    def __init__(self, env, **kwargs):
+    def __init__(self, env, oracle=None, **kwargs):
         self._env = env
         self._kwargs = kwargs
         self._hyperparameters = self._kwargs['hyperparameters']
@@ -55,6 +57,8 @@ class BaseAgent(object):
         self._action_type = "DISCRETE" if self._env.action_space.dtype == np.int64 else "CONTINUOUS"
         self._n_actions = self._env.action_space.n if self._action_type == "DISCRETE" else env.action_space.shape[0]
         
+        self._steps_list = []
+
         self._episode_score = 0
         self._episode_scores = []
         self._episode_mean_score = 0
@@ -103,7 +107,9 @@ class BaseAgent(object):
         self._steps = 0
         self._total_steps = 0
         self._done_training = False
-        
+
+        self._oracle = oracle
+
     def CreateNetworkBody(self, network_args):
         input_shape = self._env.observation_space
         body = None
@@ -164,6 +170,10 @@ class BaseAgent(object):
             self._episode_scores = self._episode_scores[-self._reward_window:]
             self._episode_mean_score = np.mean(self._episode_scores)
 
+            self._steps_list.append(steps)
+            self._steps_list = self._steps_list[-self._reward_window:]
+            mean_steps = np.mean(self._steps_list)
+
             if episode_score > self._best_score:
                 self._best_score = episode_score
             if self._episode_mean_score > self._best_mean_score:
@@ -177,6 +187,7 @@ class BaseAgent(object):
             episode_info['episode'] = self._episode
             episode_info['loss'] = episode_loss
             episode_info['steps'] = steps
+            episode_info['mean_steps'] = round(mean_steps, 0)
             episode_info['episode_score'] = round(episode_score, 2)
             episode_info['mean_score'] = round(self._episode_mean_score, 2)
             episode_info['best_score'] = round(self._best_score, 2)
@@ -196,11 +207,9 @@ class BaseAgent(object):
         best_score = -math.inf
         total_steps = 0
 
-        for i in range(1, episodes+1):        
-            if self._enable_seed:
-                self._env.seed(self._seed)
+        for i in range(1, episodes+1):
 
-            episode_score, steps, info = self.PlayEpisode(evaluate=True)
+            episode_score, steps, episode_loss, info = self.PlayEpisode(evaluate=True)
 
             if episode_score > best_score:
                 best_score = episode_score
@@ -225,8 +234,7 @@ class BaseAgent(object):
 
         state = self._env.reset()
         while self._steps != self._max_steps and not done:
-            # Noisy - No epsilon
-            action = self.Act(state)
+            action = self.GetAction(state, evaluate)
 
             next_state, reward, done, info = self._env.step(action)
 
@@ -249,7 +257,7 @@ class BaseAgent(object):
             self._total_steps += 1
 
         self._env.close()
-        return episode_reward, self._steps, episode_loss, info
+        return episode_reward, self._steps, round(episode_loss,2), info
 
     def SaveMemory(self, transition):
         if self._memory_n_step:
@@ -304,7 +312,13 @@ class BaseAgent(object):
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
         raise NotImplementedError("Error must implement the Calculate Loss function")
 
-    def Act(self):
+    def GetAction(self, state, evaluate=False):
+        if self._oracle and not evaluate:
+            return self._oracle.Act(state)
+        else:
+            return self.Act(state)
+
+    def Act(self, state):
         raise NotImplementedError("Agent must implement the Act function")
 
     def Learn(self):
@@ -394,3 +408,5 @@ class BaseAgent(object):
     def CreateOptimizer(self, optimizer, network_params, optimizer_args):
         if optimizer.lower() == "adam":
             return optim.Adam(network_params, **optimizer_args)
+        elif optimizer.lower() == 'sgd':
+            return optim.SGD(network_params, **optimizer_args)

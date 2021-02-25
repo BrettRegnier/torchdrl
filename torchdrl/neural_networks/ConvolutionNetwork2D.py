@@ -47,7 +47,7 @@ class ConvolutionNetwork2D(BaseNetwork):
         if activations:
             convos.append(self.GetActivation(activations[0]))
         if pools:
-            convos.append(nn.MaxPool1d(pools[0]))
+            convos.append(nn.MaxPool2d(pools[0]))
         
         for i in range(1, len(filters)):
             features_in = features_out
@@ -66,10 +66,10 @@ class ConvolutionNetwork2D(BaseNetwork):
 
             convos.append(nn.Conv2d(features_in, features_out, kernel, stride, padding=padding))
 
-            if activations:
+            if activations and i < len(activations):
                 convos.append(self.GetActivation(activations[i]))
-            if pools:
-                convos.append(nn.MaxPool1d(pools[i]))
+            if pools and i < len(pools):
+                convos.append(nn.MaxPool2d(pools[i]))
 
         if flatten:
             convos.append(Flatten())        
@@ -80,6 +80,10 @@ class ConvolutionNetwork2D(BaseNetwork):
                 nn.init.xavier_uniform_(layer.weight)
             
         self._net = nn.Sequential(*convos)
+        # x = torch.zeros(1, *input_shape)
+        # print(input_shape)
+        # print(x)
+        # print(self._net); exit();
         self.to(self._device)
 
     def forward(self, state):

@@ -65,9 +65,9 @@ class ConvolutionNetwork1D(BaseNetwork):
 
             convos.append(nn.Conv1d(features_in, features_out, kernel, stride, padding=padding))
 
-            if activations:
+            if activations and i < len(activations):
                 convos.append(self.GetActivation(activations[i]))
-            if pools:
+            if pools and i < len(pools):
                 convos.append(nn.MaxPool1d(pools[i]))
 
         if flatten:

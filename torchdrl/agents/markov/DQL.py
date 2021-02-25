@@ -15,8 +15,8 @@ from torchdrl.tools.NeuralNetworkFactory import *
 
 
 class DQL(BaseAgent):
-    def __init__(self, env, **kwargs):
-        super(DQL, self).__init__(env, **kwargs)
+    def __init__(self, env, oracle=None, **kwargs):
+        super(DQL, self).__init__(env, oracle, **kwargs)
         self._epsilon = self._hyperparameters['epsilon']
         self._epsilon_decay = self._hyperparameters['epsilon_decay']
         self._epsilon_max = self._hyperparameters['epsilon']
@@ -74,15 +74,14 @@ class DQL(BaseAgent):
             q_values = self._net(state_t)
             action = torch.argmax(q_values).item()
 
-        # linearly decrease epsilon
-        self._epsilon = max(self._epsilon_min, self._epsilon -
-                            (self._epsilon_max - self._epsilon_min) * self._epsilon_decay)
-
         return action
 
     def Learn(self):
         loss = self.Update()
 
+        # linearly decrease epsilon
+        self._epsilon = max(self._epsilon_min, self._epsilon -
+                            (self._epsilon_max - self._epsilon_min) * self._epsilon_decay)
         return loss.detach().cpu().numpy()
 
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):
@@ -94,7 +93,7 @@ class DQL(BaseAgent):
         q_targets = (rewards_t + self._gamma * next_q_values *
                      (1-dones_t)).to(self._device)
 
-        errors = F.smooth_l1_loss(q_values, q_targets)
+        errors = F.smooth_l1_loss(q_values, q_targets, reduction="none")
 
         return errors
 

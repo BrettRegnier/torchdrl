@@ -13,8 +13,8 @@ from torchdrl.representations.Plotter import Plotter
 
 
 class DoubleDQL(DQL):
-    def __init__(self, env, **kwargs):
-        super(DoubleDQL, self).__init__(env, **kwargs)
+    def __init__(self, env, oracle=None, **kwargs):
+        super(DoubleDQL, self).__init__(env, oracle, **kwargs)
 
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):
         q_values = self._net(states_t).gather(1, actions_t.unsqueeze(1))
@@ -28,6 +28,5 @@ class DoubleDQL(DQL):
         q_target = (rewards_t + gamma * next_state_action_pair_values *
                     (1-dones_t)).to(self._device)
 
-        errors = F.smooth_l1_loss(q_values, q_target)
-
+        errors = F.smooth_l1_loss(q_values, q_target, reduction="none")
         return errors

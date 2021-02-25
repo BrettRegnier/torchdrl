@@ -34,8 +34,8 @@ import time
 
 
 class RainbowDQL(BaseAgent):
-    def __init__(self, env, **kwargs):
-        super(RainbowDQL, self).__init__(env, **kwargs)
+    def __init__(self, env, oracle=None, **kwargs):
+        super(RainbowDQL, self).__init__(env, oracle, **kwargs)
         self._v_min = self._hyperparameters['v_min']
         self._v_max = self._hyperparameters['v_max']
         self._atom_size = self._hyperparameters['atom_size']
@@ -90,7 +90,7 @@ class RainbowDQL(BaseAgent):
         # noisy no epsilon
         states_t = self.ConvertStateToTensor(state)
 
-        q_values = self._net(states_t)
+        q_values = self._net(state_t)
         action = q_values.argmax().item()
 
         return action
@@ -141,7 +141,6 @@ class RainbowDQL(BaseAgent):
         log_p = torch.log(dist[range(batch_size), actions_t])
 
         errors = -(proj_dist * log_p).sum(1)
-        # print(errors)
         return errors
 
     def Save(self, folderpath, filename):
