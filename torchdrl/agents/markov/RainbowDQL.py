@@ -88,7 +88,7 @@ class RainbowDQL(BaseAgent):
     @torch.no_grad()
     def Act(self, state):
         # noisy no epsilon
-        states_t = self.ConvertStateToTensor(state)
+        state_t = self.ConvertStateToTensor(state)
 
         q_values = self._net(state_t)
         action = q_values.argmax().item()

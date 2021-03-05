@@ -27,6 +27,8 @@ class NoisyLinear(nn.Module):
         self.ResetParameters()
         self.ResetNoise()
 
+        # self.__name__
+
     def forward(self, x):
         if self.training:
             weight = self._weight_mu + self._weight_sigma * self._weight_epsilon
@@ -58,3 +60,6 @@ class NoisyLinear(nn.Module):
         x = torch.tensor(np.random.normal(loc=0.0, scale=1.0, size=size), dtype=torch.float32)
         x = x.sign().mul(x.abs().sqrt())
         return x
+
+    def __repr__(self):
+        return f"NoisyLinear(in_features={self._in_features}, out_features={self._out_features}, std_init={self._std_init})"

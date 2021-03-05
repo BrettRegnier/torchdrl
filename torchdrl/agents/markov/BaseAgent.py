@@ -8,6 +8,8 @@ import torch
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 
+from torchdrl.agents.Agent import Agent
+
 from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
 from torchdrl.data_structures.UniformExperienceReplay import UniformExperienceReplay
 from torchdrl.data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
@@ -16,8 +18,9 @@ from torchdrl.neural_networks.CombineNetwork import CombineNetwork
 from torchdrl.tools.NeuralNetworkFactory import *
 from torchdrl.representations.Plotter import Plotter
 
+
 # TODO clean things up. lets get this streamlined.
-class BaseAgent(object):
+class BaseAgent(Agent):
     def __init__(self, env, oracle=None, **kwargs):
         self._env = env
         self._kwargs = kwargs
