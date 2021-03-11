@@ -179,18 +179,35 @@ class Supervised(Agent):
     def Act(self, state):
         return self._model(state)
 
+    def GetAction(self, state):
+        return self.Act(state)
+
     def Load(self, filepath):
-        pass
+        checkpoint = torch.load(filepath)
+
+        self._model.load_state_dict(checkpoint['model'])
+        self._optimizer.load_state_dict(checkpoint['optimizer'])
+        
+        if self._scheduler and 'scheduler' in checkpoint:
+            self._scheduler.load_state_dict(checkpoint['scheduler'])
 
     def Save(self, folderpath, filename):
+        folderpath = folderpath if folderpath[len(folderpath) - 1] == "/" else folderpath + "/"
+        if not os.path.exists(folderpath):
+            os.makedirs(folderpath)
+
         self._save_info['model'] = self._model.state_dict()
         self._save_info['architecture'] = self._model.__str__()
+        self._save_info['optimizer'] = self._optimizer.state_dict()
         self._save_info['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['initial_lr']
         self._save_info['epochs'] = self._epochs
 
         if self._scheduler:
             self._save_info['sched_step_size'] = self._scheduler.state_dict()['step_size']
             self._save_info['sched_gamma'] = self._scheduler.state_dict()['gamma']
+            self._save_info['scheduler'] = self._scheduler.state_dict()
+
+        torch.save(self._save_info, folderpath + filename)
 
     def SetTrainsetLoader(self, trainset_loader):
         assert trainset_loader is None or isinstance(trainset_loader, (data_utils.DataLoader,)), "The trainset_loader must be a pytorch DataLoader"
