@@ -1,23 +1,17 @@
 import json
 import os
 
-def Save(filepath, config, ext=".json"):
-    last_slash = 0
-    for i in range(len(filepath)):
-        if filepath[i] == "/":
-            last_slash = i
+import torchdrl.tools.Helper as Helper
 
-    sub_path = filepath[:last_slash]
-
-    if not os.path.exists(sub_path):
-        os.mkdir(sub_path)
-
-    if ext not in filepath:
-        filepath += ext
-
+def Save(folderpath, filename, config, ext=".json"):
+    Helper.CreateSaveLocation(folderpath)
+    filename = Helper.AppendExtension(filename, ext)
     json.dump(config, open(filepath, "w"), indent=4)
 
-def Load(filepath, ext=".json"):
-    if ext not in filepath:
-        filepath += ext
-    return json.load(open(filepath))
+def Load(filepath):
+    if Helper.CheckFileLocation(filepath):
+        return json.load(open(filepath))
+    else:
+        filename, folderpath = Helper.GetFileName(filepath)
+        raise Exception(f"{filename} does not exist at {folderpath}")
+
