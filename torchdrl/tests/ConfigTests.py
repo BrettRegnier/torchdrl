@@ -24,14 +24,14 @@ class ConfigTests(unittest.TestCase):
             }
         }
 
-        Config.Save("./test_files/", "config_save.json", config)
+        Config.Save("torchdrl/tests/test_files/", "config_save.json", config)
 
-        correct = Config.Load("./test_files/config_save.json")
+        correct = Config.Load("torchdrl/tests/test_files/config_save.json")
 
         self.assertEqual(config, correct)
 
     def test_Load(self):
-        test = Config.Load("./test_files/config_load.json")
+        test = Config.Load("torchdrl/tests/test_files/config_load.json")
 
         correct = {
             "env": {
