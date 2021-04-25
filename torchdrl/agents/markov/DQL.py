@@ -6,56 +6,29 @@ from torch.optim import Adam
 import numpy as np
 import random
 
-from .BaseAgent import BaseAgent
+import torchdrl.tools.Helper as Helper
+
+from torchdrl.agents.markov.MarkovAgent import MarkovAgent
 
 from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
 from torchdrl.representations.Plotter import Plotter
 
-from torchdrl.tools.NeuralNetworkFactory import *
+class DQL(MarkovAgent):
+    def __init__(self, *args, epsilon=1.0, epsilon_decay=0.99, epsilon_min=0.01, **kwargs):
+        super(DQL, self).__init__(*args, **kwargs)
 
-
-class DQL(BaseAgent):
-    def __init__(self, env, oracle=None, **kwargs):
-        super(DQL, self).__init__(env, oracle, **kwargs)
-        self._epsilon = self._hyperparameters['epsilon']
-        self._epsilon_decay = self._hyperparameters['epsilon_decay']
-        self._epsilon_max = self._hyperparameters['epsilon']
-        self._epsilon_min = self._hyperparameters['epsilon_min']
-
-        self._net = self.CreateNetwork(self._hyperparameters['network'])
-        self._net.train()
-
-        self._target_net = self.CreateNetwork(self._hyperparameters['network'])
-        self._target_net.eval()
-
-        self.UpdateNetwork(self._net, self._target_net)
-
-        optimizer = self._hyperparameters['optimizer']
-        optimizer_kwargs = self._hyperparameters['optimizer_kwargs']
-        self._optimizer = self.CreateOptimizer(
-            optimizer, self._net.parameters(), optimizer_kwargs)
-
-        print(self._net)
-
-    def CreateNetwork(self, network_args):
-        body, input_shape = self.CreateNetworkBody(network_args)
-
-        net = None
-        head = network_args['head']
-        for key, values in network_args['head'].items():
-            values['out_features'] = self._n_actions
-            net = NetworkSelectionFactory(
-                key, input_shape, values, body, device=self._device)
-
-        return net
+        self._epsilon = epsilon
+        self._epsilon_decay = epsilon_decay
+        self._epsilon_max = epsilon
+        self._epsilon_min = epsilon_min
 
     def Evaluate(self, episodes=100):
-        self._net.eval()
+        self._model.eval()
 
         for episode_info in super().Evaluate(episodes):
             yield episode_info
 
-        self._net.train()
+        self._model.train()
 
     def PlayEpisode(self, evaluate=False):
         episode_reward, steps, episode_loss, info = super().PlayEpisode(evaluate)
@@ -65,28 +38,31 @@ class DQL(BaseAgent):
         return episode_reward, steps, episode_loss, info
 
     @torch.no_grad()
-    def Act(self, state):
-        if random.random() < self._epsilon:
+    def Act(self, state, evaluate=False):
+        if random.random() < self._epsilon and not evaluate:
             action = self._env.action_space.sample()
         else:
-            state_t = self.ConvertStateToTensor(state)
+            state_t = Helper.ConvertStateToTensor(state, self._device)
 
-            q_values = self._net(state_t)
+            q_values = self._model(state_t)
             action = torch.argmax(q_values).item()
 
         return action
 
     def Learn(self):
-        loss = self.Update()
+        if len(self._memory) >= self._batch_size:
+            loss = self.Update()
 
-        # linearly decrease epsilon
-        self._epsilon = max(self._epsilon_min, self._epsilon -
-                            (self._epsilon_max - self._epsilon_min) * self._epsilon_decay)
-        return loss.detach().cpu().numpy()
+            # linearly decrease epsilon
+            self._epsilon = max(self._epsilon_min, self._epsilon -
+                                (self._epsilon_max - self._epsilon_min) * self._epsilon_decay)
+            
+            return loss.detach().cpu().numpy()
+        return 0
 
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):
-        q_values = self._net(states_t).gather(1, actions_t.unsqueeze(1))
-        next_q_values = self._target_net(next_states_t).max(
+        q_values = self._model(states_t).gather(1, actions_t.unsqueeze(1))
+        next_q_values = self._target_model(next_states_t).max(
             dim=1, keepdim=True)[0].detach()
         mask = 1 - dones_t
 
@@ -98,25 +74,33 @@ class DQL(BaseAgent):
         return errors
 
     def Save(self, folderpath, filename):
-        super().Save(folderpath, filename)
-
-        folderpath += "/" if folderpath[len(folderpath) - 1] != "/" else ""
-        filepath = folderpath + filename
-
-        torch.save({
+        self._save_info = {
             'name': self._name,
-            'net_state_dict': self._net.state_dict(),
-            'target_net_state_dict': self._target_net.state_dict(),
-            'net_optimizer_state_dict': self._optimizer.state_dict(),
+            'model': self._model.state_dict(),
+            'target_model': self._target_model.state_dict(),
+            'architecture': self._model.__str__(),
+            'optimizer': self._optimizer.state_dict(),
             'episode': self._episode,
-            'total_steps': self._total_steps
-        }, filepath)
+            'total_steps': self._total_steps,
+            'avg_loss': self._avg_loss,
+            'avg_test_score': self._avg_test_score
+        }
+        
+        if self._scheduler:
+            self._save_info['sched_step_size'] = self._scheduler.state_dict()['step_size']
+            self._save_info['sched_gamma'] = self._scheduler.state_dict()['gamma']
+            self._save_info['scheduler'] = self._scheduler.state_dict()
+            self._save_info['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['initial_lr']
+        else:
+            self._save_info['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['lr']
+
+        Helper.SaveAgent(folderpath, filename, self._save_info)
 
     def Load(self, filepath):
-        checkpoint = torch.load(filepath)
+        checkpoint = Helper.LoadAgent(filepath)
 
-        self._net.load_state_dict(checkpoint['net_state_dict'])
-        self._target_net.load_state_dict(checkpoint['target_net_state_dict'])
+        self._model.load_state_dict(checkpoint['net_state_dict'])
+        self._target_model.load_state_dict(checkpoint['target_net_state_dict'])
         self._optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
         self._episode.load_state_dict(checkpoint['episode'])
         self._total_steps.load_state_dict(checkpoint['total_steps'])

@@ -10,11 +10,14 @@ from torchdrl.neural_networks.BaseNetwork import BaseNetwork
 from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
 
 class NoisyDuelingCategoricalNetwork(BaseNetwork):
-    def __init__(self, input_shape:tuple, n_actions:int, atom_size:int, support, hidden_layers:list, activations:list, dropouts:list, final_activation:str, body:list=[], device="cpu"):
+    def __init__(self, input_shape:tuple, n_actions:int, v_min:int, v_max:int, atom_size:int, hidden_layers:list, activations:list, dropouts:list, final_activation:str, body:list=[], device="cpu"):
         super(NoisyDuelingCategoricalNetwork, self).__init__(input_shape, body, device)
 
-        self._support = support
+        self._v_min = v_min
+        self._v_max = v_max
         self._atom_size = atom_size
+        self._support = torch.linspace(
+            self._v_min, self._v_max, self._atom_size).to(self._device)
         self._n_actions = n_actions
 
         if type(n_actions) is not int:
@@ -93,3 +96,12 @@ class NoisyDuelingCategoricalNetwork(BaseNetwork):
         for net in self._adv:
             if type(net) == NoisyLinear:
                 net.ResetNoise()
+
+    def GetAtomSize(self):
+        return self._atom_size
+
+    def GetSupportBounds(self):
+        return self._v_min, self._v_max
+
+    def GetSupport(self):
+        return self._support

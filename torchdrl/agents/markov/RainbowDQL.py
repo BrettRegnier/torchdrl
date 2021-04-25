@@ -11,7 +11,9 @@ import numpy as np
 import random
 import copy
 
-from torchdrl.agents.markov.BaseAgent import BaseAgent
+import torchdrl.tools.Helper as Helper
+
+from torchdrl.agents.markov.MarkovAgent import MarkovAgent
 
 from torchdrl.neural_networks.ConvolutionNetwork1D import ConvolutionNetwork1D
 from torchdrl.neural_networks.FullyConnectedNetwork import FullyConnectedNetwork
@@ -19,9 +21,9 @@ from torchdrl.neural_networks.NoisyDuelingCategoricalNetwork import NoisyDueling
 from torchdrl.neural_networks.CombineNetwork import CombineNetwork
 
 from torchdrl.representations.Plotter import Plotter
-from torchdrl.tools.NeuralNetworkFactory import *
 
 import time
+
 # DQN
 # Double DQN
 # Dueling DQN
@@ -29,79 +31,56 @@ import time
 # Noisy net
 # Categorical DQN
 # N step
+class RainbowDQL(MarkovAgent):
+    def __init__(self, *args, **kwargs):
+        super(RainbowDQL, self).__init__(*args, **kwargs)
 
-# TODO go back.
+        get_atom_size_op = getattr(self._model, "GetAtomSize", None)
+        if callable(get_atom_size_op):
+            self._atom_size = get_atom_size_op()
+        else:
+            raise Exception("Provided network must have a function called GetAtomSize that returns the number of atoms")
 
+        get_support_bounds_op = getattr(self._model, "GetSupportBounds", None)
+        if callable(get_support_bounds_op):
+            self._v_min, self._v_max = get_support_bounds_op()
+        else:
+            raise Exception("Provided network must have a function called GetSupportBounds that return tuple (value min, value max)")
 
-class RainbowDQL(BaseAgent):
-    def __init__(self, env, oracle=None, **kwargs):
-        super(RainbowDQL, self).__init__(env, oracle, **kwargs)
-        self._v_min = self._hyperparameters['v_min']
-        self._v_max = self._hyperparameters['v_max']
-        self._atom_size = self._hyperparameters['atom_size']
-        self._support = torch.linspace(
-            self._v_min, self._v_max, self._atom_size).to(self._device)
-
-        # double DQN
-        self._net = self.CreateNetwork(self._hyperparameters['network'])
-        self._net.train()
-
-        self._target_net = self.CreateNetwork(self._hyperparameters['network'])
-        self._target_net.eval()
-
-        # self._optimizer = optim.SGD(self._net.parameters(), lr=self._hyperparameters['lr'], momentum=0.9)
-        optimizer = self._hyperparameters['optimizer']
-        optimizer_kwargs = self._hyperparameters['optimizer_kwargs']
-        self._optimizer = self.CreateOptimizer(
-            optimizer, self._net.parameters(), optimizer_kwargs)
-
-        self.UpdateNetwork(self._net, self._target_net)
-        print(self._net)
-
-    def CreateNetwork(self, network_args):
-        # dueling noisy
-        body, input_shape = self.CreateNetworkBody(network_args)
-
-        net = None
-        head = network_args['head']
-        for key, values in network_args['head'].items():
-            values['atom_size'] = self._atom_size
-            values['support'] = self._support
-            values['out_features'] = self._n_actions
-            net = NetworkSelectionFactory(key, input_shape, values, body, device=self._device)
-        
-        return net
+        get_support_op = getattr(self._model, "GetSupport", None)
+        if callable(get_support_op):
+            self._support = get_support_op()
+        else:
+            raise Exception("Provided network must have a function called GetSupport that returns a torch tensor support (linspace)")
 
     def Evaluate(self, episodes=100):
-        self._net.eval()
+        self._model.eval()
         
         for episode_info in super().Evaluate(episodes):
             yield episode_info
 
-        self._net.train()
-
-    def PlayEpisode(self, evaluate=False):
-        episode_reward, steps, episode_loss, info = super().PlayEpisode(evaluate)
-            
-        return episode_reward, steps, episode_loss, info
+        self._model.train()
 
     @torch.no_grad()
-    def Act(self, state):
+    def Act(self, state, evaluate=False):
         # noisy no epsilon
-        state_t = self.ConvertStateToTensor(state)
+        state_t = Helper.ConvertStateToTensor(state, self._device)
 
-        q_values = self._net(state_t)
+        q_values = self._model(state_t)
         action = q_values.argmax().item()
 
         return action
 
     def Learn(self):
-        loss = self.Update()
+        if len(self._memory) >= self._batch_size:
+            loss = self.Update()
+            
+            # Noisy
+            self._model.ResetNoise()
+            self._target_model.ResetNoise()
         
-        # Noisy
-        self._net.ResetNoise()
-        self._target_net.ResetNoise()
-        return loss.detach().cpu().numpy()
+            return loss.detach().cpu().numpy()
+        return 0
 
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):
         # categorical
@@ -109,8 +88,8 @@ class RainbowDQL(BaseAgent):
 
         with torch.no_grad():
             # double dqn
-            next_actions = self._net(next_states_t).argmax(1)
-            next_dists = self._target_net.DistributionForward(next_states_t)
+            next_actions = self._model(next_states_t).argmax(1)
+            next_dists = self._target_model.DistributionForward(next_states_t)
             next_dists = next_dists[range(batch_size), next_actions]
 
             # categorical
@@ -137,32 +116,29 @@ class RainbowDQL(BaseAgent):
                 0, (u + offset).view(-1), (next_dists * (b - l.float())).view(-1)
             )
 
-        dist = self._net.DistributionForward(states_t)
+        dist = self._model.DistributionForward(states_t)
         log_p = torch.log(dist[range(batch_size), actions_t])
 
         errors = -(proj_dist * log_p).sum(1)
         return errors
 
     def Save(self, folderpath, filename):
-        super().Save(folderpath, filename)
-
-        folderpath += "/" if folderpath[len(folderpath) - 1] != "/" else ""
-        filepath = folderpath + filename
-
-        torch.save({
+        agent_dict = {
             'name': self._name,
-            'net_state_dict': self._net.state_dict(),
-            'target_net_state_dict': self._target_net.state_dict(),
+            'net_state_dict': self._model.state_dict(),
+            'target_net_state_dict': self._target_model.state_dict(),
             'net_optimizer_state_dict': self._optimizer.state_dict(),
             'episode': self._episode,
             'total_steps': self._total_steps
-        }, filepath)
+        }
+
+        Helper.SaveAgent(folderpath, filename, agent_dict)
 
     def Load(self, filepath):
-        checkpoint = torch.load(filepath)
+        checkpoint = Helper.LoadAgent(filepath)
 
-        self._net.load_state_dict(checkpoint['net_state_dict'])
-        self._target_net.load_state_dict(checkpoint['target_net_state_dict'])
+        self._model.load_state_dict(checkpoint['net_state_dict'])
+        self._target_model.load_state_dict(checkpoint['target_net_state_dict'])
         self._optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
         self._episode = checkpoint['episode']
         self._total_steps = checkpoint['total_steps']

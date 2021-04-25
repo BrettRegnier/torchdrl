@@ -6,21 +6,36 @@ from .ExperienceReplay import ExperienceReplay
 from .SumSegmentTree import SumSegmentTree
 
 class PrioritizedExperienceReplay(ExperienceReplay):
+    """
+    Implemenation of the Prioritized Experience Replay paper https://arxiv.org/abs/1511.05952
+    Inspired from https://github.com/Curt-Park/rainbow-is-all-you-need/blob/master/03.per.ipynb
+    
+    Arguments:
+        input_shape {tuple:int, list:int} -- The input shape of the 
+            observation space
+        capacity {int} -- Number of memories stored in the buffer
+        n_step {int} -- Number of steps to rollout
+        gamma {float} -- Discount factor for rollout
+        alpha {float} -- Max priority multiplier [0-1]
+        beta {float} -- Importance sampling, linearly increasing to 1. 
+            Where 1 is max importance
+        beta_inc {float} -- Beta increment value per sample retrieval
+    """
+
     def __init__(
         self, 
-        capacity,
         input_shape, 
+        capacity=1,
         n_step=1,
         gamma=0.99,
-        alpha=0.6,
-        beta=0.2,
-        beta_inc=0.0001
+        alpha=0.2,
+        beta=0.6,
+        beta_inc=0.001
     ):
-
         assert alpha >= 0
 
         super(PrioritizedExperienceReplay, self).__init__(
-            capacity, input_shape, n_step, gamma
+            input_shape, capacity, n_step, gamma
         )
 
         self._priority_epsilon = 1e-6
@@ -65,12 +80,6 @@ class PrioritizedExperienceReplay(ExperienceReplay):
             value = random.uniform(a, b)
             idx = self._sum_tree.Retrieve(value)
             indices.append(idx)
-        
-        # states = self._states[indices]
-        # actions = self._actions[indices]
-        # next_states = self._next_states[indices]
-        # rewards = self._rewards[indices]
-        # dones = self._dones[indices]
         
         states, actions, next_states, rewards, dones, weights = self.SampleBatchFromIndices(indices)
         indices = np.array(indices, dtype=np.int64)

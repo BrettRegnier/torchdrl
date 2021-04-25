@@ -113,46 +113,6 @@ class BaseAgent(Agent):
 
         self._oracle = oracle
 
-    def CreateNetworkBody(self, network_args):
-        input_shape = self._env.observation_space
-        body = None
-        networks = []
-        if isinstance(input_shape, (gym.spaces.Tuple, gym.spaces.Dict)):
-            if 'group' in network_args:
-                for i, (key, values) in enumerate(network_args['group'].items()):
-                    networks.append(NetworkSelectionFactory(
-                        key, input_shape[i].shape, values, device=self._device))
-                body = CombineNetwork(networks, self._device)
-                input_shape = body.OutputSize()
-            else:
-                raise Exception(
-                    "gym tuple/dict detected, requires a grouping of networks")
-        else:
-            input_shape = input_shape.shape
-
-        if 'sequential' in network_args:
-            for i, (key, values) in enumerate(network_args['sequential'].items()):
-                body = NetworkSelectionFactory(
-                    key, input_shape, values, body, device=self._device)
-                input_shape = body.OutputSize()
-                
-        return body, input_shape
-            
-    def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
-        for episode_info in self.Train(num_episodes, num_steps):
-            # episode = episode_info['episode']
-            # steps = episode_info['steps']
-            # score = episode_info['episode_score']
-            # mean_score = episode_info['mean_score']
-            # total_steps = episode_info['total_steps']
-            # print(("Episode: %d, steps: %d, total steps: %d, episode score: %.2f, mean score: %.2f ") % (self._episode, steps, self._total_steps, episode_score, mean_score))
-
-            msg = ""
-            for k in episode_info:
-                msg += k + ": " + str(episode_info[k]) + ", "
-
-            print(msg)
-
     def Train(self, num_episodes=math.inf, num_steps=math.inf):
         """
         [[Generator function]]
@@ -203,6 +163,21 @@ class BaseAgent(Agent):
         # finished training save self.
         self.Checkpoint()
         self._plotter.ShowAll()
+            
+    def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
+        for episode_info in self.Train(num_episodes, num_steps):
+            # episode = episode_info['episode']
+            # steps = episode_info['steps']
+            # score = episode_info['episode_score']
+            # mean_score = episode_info['mean_score']
+            # total_steps = episode_info['total_steps']
+            # print(("Episode: %d, steps: %d, total steps: %d, episode score: %.2f, mean score: %.2f ") % (self._episode, steps, self._total_steps, episode_score, mean_score))
+
+            msg = ""
+            for k in episode_info:
+                msg += k + ": " + str(episode_info[k]) + ", "
+
+            print(msg)
 
     def Evaluate(self, episodes=1000):
         episode_scores = []
@@ -228,6 +203,40 @@ class BaseAgent(Agent):
                 self.Checkpoint()
 
             yield episode_info
+
+    def GetAction(self, state, evaluate=False):
+        if self._oracle and not evaluate:
+            return self._oracle.Act(state)
+        else:
+            return self.Act(state)
+
+    def Act(self, state):
+        raise NotImplementedError("Error. Agent must implement the Act function")
+
+    def CreateNetworkBody(self, network_args):
+        input_shape = self._env.observation_space
+        body = None
+        networks = []
+        if isinstance(input_shape, (gym.spaces.Tuple, gym.spaces.Dict)):
+            if 'group' in network_args:
+                for i, (key, values) in enumerate(network_args['group'].items()):
+                    networks.append(NetworkSelectionFactory(
+                        key, input_shape[i].shape, values, device=self._device))
+                body = CombineNetwork(networks, self._device)
+                input_shape = body.OutputSize()
+            else:
+                raise Exception(
+                    "gym tuple/dict detected, requires a grouping of networks")
+        else:
+            input_shape = input_shape.shape
+
+        if 'sequential' in network_args:
+            for i, (key, values) in enumerate(network_args['sequential'].items()):
+                body = NetworkSelectionFactory(
+                    key, input_shape, values, body, device=self._device)
+                input_shape = body.OutputSize()
+                
+        return body, input_shape
 
     def PlayEpisode(self, evaluate=False):
         self._steps = 0
@@ -315,25 +324,12 @@ class BaseAgent(Agent):
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
         raise NotImplementedError("Error must implement the Calculate Loss function")
 
-    def GetAction(self, state, evaluate=False):
-        if self._oracle and not evaluate:
-            return self._oracle.Act(state)
-        else:
-            return self.Act(state)
-
-    def Act(self, state):
-        raise NotImplementedError("Agent must implement the Act function")
-
     def Learn(self):
-        raise NotImplementedError("Error must implement Learn function")
-
-    def Load(self, filepath):
-        raise NotImplementedError("Error must implement load function")
-
-    def Save(self, folderpath, filename):
-        # move into utility class
-        if not os.path.exists(folderpath):
-            os.mkdir(folderpath)
+        raise NotImplementedError("Error. Markov agent must implement Learn function")
+    
+    def Checkpoint(self):
+        folderpath = self._checkpoint_root + "/" + self._name
+        filename = "episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + ".pt"
 
         list_of_files = os.listdir(folderpath)
         if len(list_of_files) >= self._checkpoint_max_num:
@@ -341,10 +337,7 @@ class BaseAgent(Agent):
 
             oldest_file = min(full_path, key=os.path.getctime)
             os.remove(oldest_file)
-    
-    def Checkpoint(self):
-        folderpath = self._checkpoint_root + "/" + self._name
-        filename = "episode_" + str(self._episode) + "_score_" + str(round(self._episode_mean_score, 2)) + ".pt"
+        
         self.Save(folderpath, filename)
 
     def OptimizationStep(self, optimizer, network, loss, clipping_norm=None, retain_graph=False):

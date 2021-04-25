@@ -3,6 +3,7 @@ import numpy as np
 class SumSegmentTree:
     def __init__(self, capacity):
         #TODO assert even capacity
+        # assert capacity % 2 == 0
         assert capacity > 1
 
         self._capacity = capacity - 1

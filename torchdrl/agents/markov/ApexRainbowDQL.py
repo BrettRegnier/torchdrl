@@ -21,6 +21,8 @@ from torchdrl.data_structures.ExperienceReplay import ExperienceReplay
 from torchdrl.data_structures.ApexExperienceReplay import ApexExperieceReplay
 from torchdrl.data_structures.UniformExperienceReplay import UniformExperienceReplay
 
+# TODO remake this
+
 class ApexRainbowDQLActor(RainbowDQL):
     def __init__(self, config, agent_id, learner):
         # need to set a device first.

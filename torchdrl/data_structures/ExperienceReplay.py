@@ -3,12 +3,24 @@ import numpy as np
 
 # source from https://github.com/Curt-Park/rainbow-is-all-you-need 
 
-class ExperienceReplay:
+class ExperienceReplay:    
+    """
+    Uniform Experience Replay
+    Inspired from https://github.com/Curt-Park/rainbow-is-all-you-need 
+    
+    Arguments:
+        input_shape {tuple:int, list:int} -- The input shape of the 
+            observation space
+        capacity {int} -- Number of memories stored in the buffer
+        n_step {int} -- Number of steps to rollout
+        gamma {float} -- Discount factor for rollout
+    """
+
     def __init__(
         self, 
-        capacity:int, 
         input_shape:(tuple, list),
-        n_step:int=3,
+        capacity:int=1, 
+        n_step:int=1,
         gamma:float=0.99
     ):
         self._capacity = capacity
@@ -120,6 +132,12 @@ class ExperienceReplay:
 
     def __len__(self):
         return self._size
+
+    def GetNStep(self):
+        """
+        Returns the n_step private parameter
+        """
+        return self._n_step
 
     # just do nothing because PER requires this and having checks is more cpu than running nothing.
     def BatchUpdate(self, indices, errors):

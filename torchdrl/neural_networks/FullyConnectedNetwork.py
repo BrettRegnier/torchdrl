@@ -24,20 +24,20 @@ class FullyConnectedNetwork(BaseNetwork):
             out_features = hidden_layers[0]
 
             net.append(nn.Linear(in_features, out_features))
-            if activations:
-                net.append(self.GetActivation(activations[0]))
             if dropouts:
                 net.append(nn.Dropout(dropouts[0]))
+            if activations:
+                net.append(self.GetActivation(activations[0]))
 
             for i in range(1, len(hidden_layers)):
                 in_features = out_features
                 out_features = hidden_layers[i]
 
                 net.append(nn.Linear(in_features, out_features))
-                if activations:
-                    net.append(self.GetActivation(activations[i]))
                 if dropouts:
                     net.append(nn.Dropout(dropouts[i]))
+                if activations:
+                    net.append(self.GetActivation(activations[i]))
 
             in_features = out_features
 
