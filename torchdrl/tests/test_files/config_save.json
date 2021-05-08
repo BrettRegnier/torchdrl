@@ -1,0 +1,18 @@
+{
+    "env": {
+        "env_name": "Boat",
+        "env_kwargs": {
+            "num_participants": 8,
+            "num_locked": 0,
+            "lr_goal": 0,
+            "lr_relax": 50,
+            "fb_goal": 30,
+            "fb_relax": 0,
+            "rower_state_mode": "2D",
+            "rowers_state_normalize": false,
+            "include_boat_state_weight": true,
+            "reward_mode": "sparse"
+        }
+    },
+    "agent": {}
+}

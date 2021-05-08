@@ -469,3 +469,7 @@ class MarkovAgent(Agent):
         dones_t = torch.tensor(dones_np.reshape(-1, 1), dtype=torch.int64, device=self._device)
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
+
+    def LoadStateDict(self, state_dict):
+        self._model.load_state_dict(state_dict)
+        self._target_model.load_state_dict(state_dict)
