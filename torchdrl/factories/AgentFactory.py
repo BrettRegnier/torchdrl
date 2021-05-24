@@ -1,12 +1,15 @@
+import torch.nn as nn
 import torch.utils.data as data_utils
 
-from torchdrl.agents.markov.DQL import DQL
-from torchdrl.agents.markov.DoubleDQL import DoubleDQL
-from torchdrl.agents.markov.RainbowDQL import RainbowDQL
+from torchdrl.agents.q_learning.DQL import DQL
+from torchdrl.agents.q_learning.DoubleDQL import DoubleDQL
+from torchdrl.agents.q_learning.RainbowDQL import RainbowDQL
 
-from torchdrl.agents.monte_carlo.Reinforce import Reinforce
-from torchdrl.agents.monte_carlo.GAE import GAE
-from torchdrl.agents.monte_carlo.PPO import PPO
+from torchdrl.agents.sarsa.Reinforce import Reinforce
+from torchdrl.agents.sarsa.GAE import GAE
+from torchdrl.agents.sarsa.PPO import PPO
+
+from torchdrl.agents.supervised.Supervised import Supervised
 
 import torchdrl.factories.NeuralNetworkFactory as NeuralNetworkFactory
 import torchdrl.factories.OptimizerFactory as OptimizerFactory
@@ -17,35 +20,52 @@ import torchdrl.factories.AgentFactory as AgentFactory
 import DragonFruit.datagen.BoatDatasetRetriever as BoatDatasetRetriever
 import DragonFruit.datagen.BoatDataGenerator as BoatDataGenerator
 
-def CreateMarkovAgent(config, env):
-    markov_config = config
-    device = markov_config['device']
+def CreateAgent(agent_type, args, kwargs):
+    agent = None
+    if agent_type.lower() == 'dql':
+        agent = DQL(*args, **kwargs)
+    elif agent_type.lower() == 'doubledql':
+        agent = DoubleDQL(*args, **kwargs)
+    elif agent_type.lower() == 'rainbowdql':
+        agent = RainbowDQL(*args, **kwargs)
+    elif agent_type.lower() == 'reinforce':
+        agent = Reinforce(*args, **kwargs)
+    elif agent_type.lower() == 'gae':
+        agent = GAE(*args, **kwargs)
+    elif agent_type.lower() == 'ppo':
+        agent = PPO(*args, **kwargs)
+
+    return agent 
+
+def CreateQLearningAgent(config, env):
+    q_learning_config = config
+    device = q_learning_config['device']
 
     # reinforcement learning
     model = NeuralNetworkFactory.CreateNetwork(
-        markov_config['model'], env.observation_space, env.action_space, device)
-    markov_optimizer = OptimizerFactory.CreateOptimizer(
-        markov_config['optimizer']['name'], (model.parameters(),), markov_config['optimizer']['kwargs'])
-    markov_scheduler = SchedulerFactory.CreateScheduler(
-        markov_config['scheduler']['name'], markov_optimizer, markov_config['scheduler']['kwargs'])
+        q_learning_config['model'], env.observation_space, env.action_space, device)
+    q_learning_optimizer = OptimizerFactory.CreateOptimizer(
+        q_learning_config['optimizer']['name'], (model.parameters(),), q_learning_config['optimizer']['kwargs'])
+    q_learning_scheduler = SchedulerFactory.CreateScheduler(
+        q_learning_config['scheduler']['name'], q_learning_optimizer, q_learning_config['scheduler']['kwargs'])
     memory = MemoryFactory.CreateMemory(
-        markov_config['memories']['memory']['name'], env.observation_space, markov_config['memories']['memory']['kwargs'])
+        q_learning_config['memories']['memory']['name'], env.observation_space, q_learning_config['memories']['memory']['kwargs'])
 
     memory_n_step = None
-    if 'memory_n_step' in markov_config['memories']:
+    if 'memory_n_step' in q_learning_config['memories']:
         memory_n_step = MemoryFactory.CreateMemory(
-            markov_config['memories']['memory_n_step']['name'], env.observation_space, markov_config['memories']['memory_n_step']['kwargs'])
+            q_learning_config['memories']['memory_n_step']['name'], env.observation_space, q_learning_config['memories']['memory_n_step']['kwargs'])
 
-    markov_args = (markov_config['name'], env, model,
-                   markov_optimizer, markov_config['batch_size'], memory)
-    markov_kwargs = markov_config['kwargs']
-    markov_kwargs['memory_n_step'] = memory_n_step
-    markov_kwargs['scheduler'] = markov_scheduler
-    markov_kwargs['device'] = device
+    q_learning_args = (q_learning_config['name'], env, model,
+                   q_learning_optimizer, q_learning_config['batch_size'], memory)
+    q_learning_kwargs = q_learning_config['kwargs']
+    q_learning_kwargs['memory_n_step'] = memory_n_step
+    q_learning_kwargs['scheduler'] = q_learning_scheduler
+    q_learning_kwargs['device'] = device
 
-    markov_agent = CreateAgent(markov_config['type'], markov_args, markov_kwargs)
+    q_learning_agent = CreateAgent(q_learning_config['type'], q_learning_args, q_learning_kwargs)
 
-    return markov_agent
+    return q_learning_agent
 
 def CreateSupervisedAgent(config, env):
     supervised_config = config
@@ -56,7 +76,7 @@ def CreateSupervisedAgent(config, env):
         supervised_config['model'], env.observation_space, env.action_space, device)
     supervised_optimizer = OptimizerFactory.CreateOptimizer(
         supervised_config['optimizer']['name'], (model.parameters(),), supervised_config['optimizer']['kwargs'])
-    criterion = nn.CrossEntropyLoss()  # TODO move into a factory?
+    criterion = nn.CrossEntropyLoss()  # TODO move into a factory? // Note this is categorical cross entropy loss
     trainset = BoatDatasetRetriever.GetDataset(
         supervised_config['dataset']['train_set_dir'], supervised_config['dataset']['multi_keys'])
     trainset_dataloader = data_utils.DataLoader(

@@ -30,6 +30,7 @@ def SplitFilename(filepath):
     folderpath = filepath[:idx]
     return (filename, folderpath)
 
+# TODO rename to SaveTorchFile
 def SaveAgent(folderpath, filename, agent_dict):
     filename = AppendExtension(filename, "pt")
     folderpath = AppendSlash(folderpath)
@@ -37,14 +38,18 @@ def SaveAgent(folderpath, filename, agent_dict):
 
     torch.save(agent_dict, folderpath + filename)
 
+# TODO rename to LoadTorchFile
 def LoadAgent(filepath):
     if CheckFileLocation(filepath):
         checkpoint = torch.load(filepath)
         return checkpoint 
     else:
-        filename, folderpath = Helper.GetFileName(filepath)
+        filename, folderpath = SplitFilename(filepath)
         raise Exception(f"{filename} does not exist at {folderpath}")
 
+# TODO Fix
+# I need to give it some way of distinguishing between a list of lists
+# and a list of different state objects, which could be based on shape?
 def ConvertStateToTensor(state, device="cpu"):
     if isinstance(state, object) and not isinstance(state, np.ndarray):
         states_t = []

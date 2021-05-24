@@ -1,4 +1,5 @@
 import collections
+from typing import Iterable
 import numpy as np
 
 # source from https://github.com/Curt-Park/rainbow-is-all-you-need 
@@ -18,7 +19,7 @@ class ExperienceReplay:
 
     def __init__(
         self, 
-        input_shape:(tuple, list),
+        input_shape:Iterable,
         capacity:int=1, 
         n_step:int=1,
         gamma:float=0.99
