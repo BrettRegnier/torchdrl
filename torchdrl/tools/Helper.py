@@ -49,18 +49,23 @@ def LoadAgent(filepath):
 
 # TODO Fix
 # I need to give it some way of distinguishing between a list of lists
-# and a list of different state objects, which could be based on shape?
-def ConvertStateToTensor(state, device="cpu"):
-    if isinstance(state, object) and not isinstance(state, np.ndarray):
+# and a list of different states objects, which could be based on shape?
+def ConvertStateToTensor(states, device="cpu", state_is_tuple=False):
+    if state_is_tuple:
         states_t = []
-        for val in state:
-            state_t = torch.tensor(val, dtype=torch.float32,
-                            device=device).unsqueeze(0).detach()
-            states_t.append(state_t)
+        for state in states:
+            if isinstance(state, object) and not isinstance(state, np.ndarray):
+                tuple_states = []
+                for val in state:
+                    tuple_state_t = torch.tensor(val, dtype=torch.float32,
+                                    device=device).unsqueeze(0).detach()
+                    tuple_states.append(tuple_state_t)
+                states_t.append(tuple_states)
+            else:
+                raise Exception("The states array is not an instance of np.ndarray")
     else:
-        states_t = torch.tensor(state, dtype=torch.float32,
+        states_t = torch.tensor(states, dtype=torch.float32,
                             device=device).detach()
-        states_t = states_t.unsqueeze(0)
         
     return states_t
 

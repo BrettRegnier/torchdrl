@@ -1,9 +1,11 @@
 import torch
 import torch.nn.functional as F
 
-from torchdrl.agents.q_learning.DQL import DQL
-
-class DoubleDQL(DQL):
+class DoubleDQL:
+    name="DoubleDQL"
+    def __init__(self, device="cpu"):
+        self._device = device
+        
     def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size, gamma):
         q_values = self._model(states_t).gather(1, actions_t.unsqueeze(1))
 
@@ -18,3 +20,6 @@ class DoubleDQL(DQL):
 
         errors = F.smooth_l1_loss(q_values, q_target, reduction="none")
         return errors
+
+    def __call__(self, network, target_network, states_t, actions_t, next_states_t, rewards_t, dones_t, batch_size, gamma):
+        return self.CalculateErrors(network, target_network, states_t, actions_t, next_states_t, rewards_t, dones_t, batch_size, gamma)

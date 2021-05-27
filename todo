@@ -1,18 +1,21 @@
--- Supervised learning models.
+Refactor/Implement
+    - Basic manager 
+    - Apex manager
+    - Agents and Manager
+        -- Manager should receive an agent 
+        -- Manager should handle the training 
+        -- Manager should handle the play episode
+        -- What I have now is that The agent does everything
+            which makes it impossible to extend it into 
+            things that just need its acting ability
+        -- Manager should be able to run a factory
 
--- apex rainbow
+    - Plotter 
+        - Save graph every x time
+        - Clear graph every x time 
+    - NN factory 
+        - Clean up the creating of NN 
+        - Make them more tidy in the way that they should all be in a 
+            single sequential group.
 
--- clean up the all of the memories, such that they are using a base class 
--- for main storage
-    -- the prioritized experience replay should only use the trees for the priority
-    -- all the data should be stored in numpy array outside of there.
-
--- remove all points in the plotter?
-
--Add in ability to clear logs and save current graph.
-
--Clean up creating neural networks more, so error checking is done from an base class.
-
--- unit testing
-
--- TODO compress all different "DQN" upgrades into the DQN file with configs
+    - Unit testing...

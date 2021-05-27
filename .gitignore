@@ -3,3 +3,6 @@
 sac
 
 envs/dragonboataioptimizer
+
+models/checkpoints
+models/supervised

@@ -20,8 +20,10 @@ from torchdrl.data_structures.PrioritizedExperienceReplay import PrioritizedExpe
 class QLearningAgent(Agent):
     def __init__(self, 
             name, 
-            env, 
-            model, 
+            envs,
+            network,
+            action_function,
+            loss_function,
             optimizer,
             batch_size,
             memory,
@@ -50,9 +52,14 @@ class QLearningAgent(Agent):
             device="cpu"):
 
         self._name = name
-        self._env = env
-        self._model = model
-        self._target_model = copy.deepcopy(self._model)
+        if isinstance(envs, (list, tuple)):
+            self._envs = envs
+        else:
+            self._envs = [envs]
+        self._network = network
+        self._target_network = copy.deepcopy(self._network)
+        self._loss_function = loss_function
+        self._action_function = action_function
         self._optimizer = optimizer
         self._batch_size = batch_size
         self._memory = memory
@@ -93,7 +100,7 @@ class QLearningAgent(Agent):
             np.random.seed(self._seed)
             random.seed(self._seed)
             torch.manual_seed(self._seed)
-            self._env.seed(self._seed)
+            self._envs.seed(self._seed)
             
 
         self._episode = 0
@@ -110,25 +117,25 @@ class QLearningAgent(Agent):
         self._train_last_checkpoint = 0
         self._evaluate_last_checkpoint = 0
         
-        # assumed that a object will be input
-        if isinstance(self._env.observation_space, (gym.spaces.Tuple, gym.spaces.Dict)):
+        # Assume: object will be input
+        # Assume: all envs are the same
+        if isinstance(self._envs[0].observation_space, (gym.spaces.Tuple, gym.spaces.Dict)):
             self._state_is_tuple = True
         else:
             self._state_is_tuple = False    
 
         self._steps_history = []
-        self._steps = 0
         self._total_steps = 0
         self._done_training = False
         
         self._ep_info = {}
 
         # after variable init
-        self._model.train()
-        self._target_model.eval()
-        Helper.UpdateNetwork(self._model, self._target_model)
+        self._network.train()
+        self._target_network.eval()
+        Helper.UpdateNetwork(self._network, self._target_network)
 
-        print(self._model)
+        print(self._network)
 
     #                               #
     # Start super class functions   #
@@ -141,24 +148,29 @@ class QLearningAgent(Agent):
         num_episodes {int} -- Number of episodes to train the agent. Otherwise, will train until num_steps or hits the reward goal.
         num_steps {int} -- Number of total steps to train the agent. Otherwise, will train until num_episodes or hits the reward goal.
 
-        Yields {dict}: Episode {int}, steps {int}, episode_score {float}, mean_score {float}, best_score {float}, best_mean_score {float}, total_steps {int}, gym env episode info.
+        Yields {dict}: Episode {int}, steps {int}, episode_score {float}, mean_score {float}, best_score {float}, best_mean_score {float}, total_steps {int}, gym env episode infos.
         """
         avg_episode_loss = 0
         wins = 0 
         loses = 0
         eval_count = 0
-        while len(self._memory) < self._batch_size or len(self._memory) < self._warm_up:
-            _, steps, episode_loss, _ = self.PlayEpisode(evaluate=False)
+
+        # warm up 
+        self._done_training = False
+
+        if len(self._memory) >= self._batch_size and len(self._memory) > self._warm_up:
+            for _, steps, _, _ in self.PlayEpisode(evaluate=False):
+                print("Warming up")
+                if len(self._memory) >= self._batch_size and len(self._memory) > self._warm_up:
+                    self._done_training = True
+
+                self._episode += 1
+                self._total_steps += steps
+
+        self._done_training = False
+        for (episode_score, steps, episode_loss, ep_info) in self.PlayEpisode(evaluate=False):
             self._episode += 1
             self._total_steps += steps
-
-            # edge case if an episode goes over the batch size
-            if episode_loss > 0:
-                self._avg_loss -= self._avg_loss / self._episode
-                self._avg_loss += episode_loss / self._episode 
-        while self._episode < num_episodes and self._total_steps < num_steps and not self._done_training:
-            self._episode += 1
-            episode_score, steps, episode_loss, ep_info = self.PlayEpisode(evaluate=False)
 
             self._episode_scores.append(episode_score)
             self._episode_scores = self._episode_scores[-self._reward_window:]
@@ -166,7 +178,7 @@ class QLearningAgent(Agent):
 
             self._steps_history.append(steps)
             self._steps_history = self._steps_history[-self._reward_window:]
-            mean_steps = round(np.mean(self._steps_history),0)
+            mean_steps = round(np.mean(self._steps_history), 0)
 
             self._avg_loss -= self._avg_loss / self._episode
             self._avg_loss += episode_loss / self._episode 
@@ -177,7 +189,13 @@ class QLearningAgent(Agent):
                 self._best_score = episode_score
             if self._episode_mean_score > self._best_mean_score:
                 self._best_mean_score = self._episode_mean_score
+
+            # Done conditions
             if self._episode_mean_score >= self._reward_goal and self._episode > 10:
+                self._done_training = True
+            if self._episode >= num_episodes:
+                self._done_training = True
+            if self._total_steps >= num_steps:
                 self._done_training = True
 
             if 'win' in ep_info:
@@ -214,7 +232,7 @@ class QLearningAgent(Agent):
                     wins = 0
                     loses = 0
 
-                if eval_count > self._evaluate_frequency:
+                if self._evaluate_frequency > 0 and eval_count > self._evaluate_frequency:
                     test_info, test_msg = self.Evaluate(self._evaluate_episodes)
                     eval_count = 0
                 
@@ -241,7 +259,7 @@ class QLearningAgent(Agent):
             
     def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
         for _, train_msg, _, test_msg in self.Train(num_episodes, num_steps):
-            print(train_msg, test_msg)
+            print(train_msg, self._action_function._epsilon, test_msg)
 
     def TrainMessage(self, train_info):
         msg = ""
@@ -260,6 +278,7 @@ class QLearningAgent(Agent):
         msg = f"[Episode {out_of:>8}] Total Steps: {total_steps:>7}, Mean Steps: {mean_steps:>3} -> Loss {loss:.4f} Avg Loss: {avg_loss:.4f} Avg Score {avg_score:.4f}"
         return msg
 
+    @torch.no_grad()
     def Evaluate(self, episodes=100):
         test_info = {}
 
@@ -268,18 +287,50 @@ class QLearningAgent(Agent):
 
         wins = 0
         loses = 0
-        info = {}
-        for i in range(1, episodes+1):
 
-            episode_score, steps, _, info = self.PlayEpisode(evaluate=True)
+        states = [None] * len(self._envs)
+        actions = [None] * len(self._envs)
+        infos = [{} for _ in range(len(self._envs))]
 
-            total_rewards += episode_score
-            total_steps += steps
+        episode_rewards = [0] * len(self._envs)
+        steps = [0] * len(self._envs)   
 
-            if 'win' in info:
-                win = info['win']
-                wins += 1 if win == 1 else 0
-                loses += 1 if win == 0 else 0
+
+        # Init all envs 
+        for idx, env in enumerate(self._envs):
+            states[idx] = env.reset()
+
+        test_idx = 1
+        while test_idx < episodes + 1:
+            actions = self.GetActions(states, evaluate=True)
+            env_selection = min(len(self._envs), (episodes+1) - test_idx)
+            envs = self._envs[:env_selection]
+            actions = actions[:env_selection]
+
+            for idx, (env, action) in enumerate(zip(envs, actions)):
+                next_state, reward, done, info = env.step(action)
+
+                episode_rewards[idx] += reward
+                steps[idx] += 1
+
+                if 'win' in info:
+                    win = info['win']
+                    wins += 1 if win == 1 else 0
+                    loses += 1 if win == 0 else 0
+
+                if done:
+                    total_steps += steps[idx]
+                    total_rewards += episode_rewards[idx]
+                    infos[idx].update(info)
+                    test_idx += 1
+
+                    states[idx] = env.reset()
+
+                    steps[idx] = 0
+                    episode_rewards[idx] = 0
+                else:
+                    states[idx] = next_state
+                    
             
         test_info['eval'] = True
         test_info['agent_name'] = self._name
@@ -288,7 +339,7 @@ class QLearningAgent(Agent):
         test_info['avg_reward'] = round(total_rewards/episodes, 2)
 
         self._test_scores.append(total_rewards/episodes)
-        if 'win' in info:
+        if 'win' in infos:
             test_info['wins'] = wins
             test_info['loses'] = loses
 
@@ -327,91 +378,123 @@ class QLearningAgent(Agent):
         
         return msg
 
-    def GetAction(self, state, evaluate=False):
+    @torch.no_grad()
+    def GetActions(self, states, evaluate=False):
         if self._oracle and not evaluate:
-            return self._oracle.Act(state)
+            return self._oracle.Act(states)
         else:
-            return self.Act(state, evaluate)
+            states_t = Helper.ConvertStateToTensor(states, device=self._device, state_is_tuple=self._state_is_tuple)
+
+            q_values = self._network(states_t)
+            return self._action_function(q_values, evaluate)
 
     #                               #
     #   End super class functions   #
     #                               #
 
-    
-    #                               #
-    #   Begin abstract functions    #
-    #                               #
-
-    def Learn(self):
-        raise NotImplementedError("Error. Markov agent must implement Learn function")
-
-    def CalculateErrors(self, states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, batch_size):
-        raise NotImplementedError("Error must implement the Calculate Loss function")
-    
-    #                           #
-    #   End abstract functions  #
-    #                           #
-
     def PlayEpisode(self, evaluate=False):
-        self._steps = 0
-        done = False
-        episode_reward = 0
-        episode_loss = 0
+        states = [None] * len(self._envs)
+        actions = [None] * len(self._envs)
+        # next_states = [None] * len(self._envs)
+        # rewards = [None] * len(self._envs)       
+        # dones = [True] * len(self._envs)
+        infos = [{} for _ in range(len(self._envs))]
 
-        state = self._env.reset()
-        while self._steps != self._max_steps_per_episode and not done:
-            action = self.GetAction(state, evaluate)
+        episode_rewards = [0] * len(self._envs)
+        episode_loss = [0] * len(self._envs)
 
-            next_state, reward, done, info = self._env.step(action)
+        steps = [0] * len(self._envs)   
 
-            if not evaluate:
-                transition = (state, action, next_state, reward, done)
-                self.SaveMemory(transition)
+        # Init all envs 
+        for i, env in enumerate(self._envs):
+            states[i] = env.reset()
 
-                episode_loss += self.Learn()
-                    
-            if self._visualize:
-                if self._episode % self._visualize_frequency == 0:
-                    self._env.render()
-                    
-            episode_reward += reward
-            state = next_state
+        while not self._done_training:
+            actions = self.GetActions(states)
+            for idx, (env, action) in enumerate(zip(self._envs, actions)):
+                if self._done_training:
+                    break
 
-            self._steps += 1
-            self._total_steps += 1
+                next_state, reward, done, info = env.step(action)
 
-        self._env.close()
+                if not evaluate:
+                    # Could maybe combine these two so there is less to change
+                    # in Ape-X
+                    self.SaveMemory(
+                        states[idx], 
+                        actions[idx], 
+                        next_state, 
+                        reward, 
+                        done
+                    )
 
-        self._ep_info.update(info)
-        return episode_reward, self._steps, round(episode_loss,2), self._ep_info
+                    episode_loss[idx] += self.Learn()
 
-    def SaveMemory(self, transition):
+                episode_rewards[idx] += reward
+                steps[idx] += 1
+
+                if self._visualize:
+                    if self._episode % self._visualize_frequency == 0:
+                        env.render()
+
+                if steps[idx] == self._max_steps_per_episode or done:
+                    infos[idx].update(info)
+                    env.close()
+                    yield (episode_rewards[idx], steps[idx], round(episode_loss[idx], 2), infos[idx])
+
+                    # RESET
+                    states[idx] = env.reset()
+
+                    steps[idx] = 0
+                    episode_rewards[idx] = 0
+                    episode_loss[idx] = 0
+                else:
+                    states[idx] = next_state
+
+    def SaveMemory(self, states, action, next_state, reward, done):
+        transition = (states, action, next_state, reward, done)
         if self._memory_n_step:
             transition = self._memory_n_step.Append(*transition)
 
         if transition:
             self._memory.Append(*transition)
+
+    def Learn(self):
+        if len(self._memory) >= self._batch_size and len(self._memory) >= self._warm_up:
+            loss = self.Update()
+
+            return loss.detach().cpu().numpy()
+        return 0
             
     def Update(self):
         states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t = self.SampleMemoryT(
             self._batch_size)
             
         # get errors
-        errors = self.CalculateErrors(states_t, actions_t, next_states_t, rewards_t,
-                                      dones_t, indices_np, weights_t, self._batch_size, self._gamma)
+        errors = self._loss_function(
+            self._network,
+            self._target_network,
+            states_t, 
+            actions_t, 
+            next_states_t, 
+            rewards_t,
+            dones_t, 
+            self._batch_size, 
+            self._gamma
+        )
 
         weights_t = weights_t.reshape(-1, 1)
         # Prioritized Experience Replay weight importancing
         loss = torch.mean(errors * weights_t)
 
-        # n-step learning with one-step to prevent high-variance
+        # n-step learning_ with one-step to prevent high-variance
         if self._memory_n_step:
             gamma = self._gamma ** self._memory_n_step.GetNStep()
             states_np, actions_np, next_states_np, rewards_np, dones_np, _ = self._memory_n_step.SampleBatchFromIndices(
                 indices_np)
             states_t, actions_t, next_states_t, rewards_t, dones_t = self.ConvertNPMemoryToTensor(
                 states_np, actions_np, next_states_np, rewards_np, dones_np)
-            errors_n = self.CalculateErrors(
+            errors_n = self._loss_function(
                 states_t, actions_t, next_states_t, rewards_t, dones_t, indices_np, weights_t, self._batch_size, gamma)
             errors += errors_n
 
@@ -420,11 +503,11 @@ class QLearningAgent(Agent):
         self._optimizer.zero_grad()
         loss.backward()
         if self._clip_grad > -1:
-            clip_grad_norm_(self._model.parameters(), self._clip_grad)
+            clip_grad_norm_(self._network.parameters(), self._clip_grad)
         self._optimizer.step()
         
         if self._target_update_steps % self._target_update_frequency == 0:
-            self._target_model.load_state_dict(self._model.state_dict())
+            self._target_network.load_state_dict(self._network.state_dict())
             self._target_update_steps = 0
 
         self._target_update_steps += 1
@@ -446,6 +529,48 @@ class QLearningAgent(Agent):
         
         self.Save(folderpath, filename)
 
+    def Save(self, folderpath, filename):
+        self._save_info = {
+            'name': self._name,
+            'network': self._network.state_dict(),
+            'target_network': self._target_network.state_dict(),
+            'architecture': self._network.__str__(),
+            'optimizer': self._optimizer.state_dict(),
+            'loss_function': self._loss_function.name,
+            'action_function': self._action_function.state_dict(),
+            'episode': self._episode,
+            'total_steps': self._total_steps,
+            'avg_loss': self._avg_loss,
+            'avg_test_score': self._avg_test_score
+        }
+        
+        if self._scheduler:
+            self._save_info['sched_step_size'] = self._scheduler.state_dict()['step_size']
+            self._save_info['sched_gamma'] = self._scheduler.state_dict()['gamma']
+            self._save_info['scheduler'] = self._scheduler.state_dict()
+            self._save_info['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['initial_lr']
+        else:
+            self._save_info['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['lr']
+
+        Helper.SaveAgent(folderpath, filename, self._save_info)
+
+    def Load(self, filepath):
+        checkpoint = Helper.LoadAgent(filepath)
+
+        self._name = checkpoint['name']
+        self._network.load_state_dict(checkpoint['network'])
+        self._target_network.load_state_dict(checkpoint['target_network'])
+        self._optimizer.load_state_dict(checkpoint['optimizer'])
+        self._action_function.load_state_dict(checkpoint['action_function'])
+        self._episode = checkpoint['episode']
+        self._total_steps = checkpoint['total_steps']
+        self._avg_loss = checkpoint['avg_loss']
+        self._avg_test_score = checkpoint['avg_test_score']
+        
+        if self._scheduler:
+            self._scheduler.load_state_dict(checkpoint['scheduler'])
+
+    # HELPER FUNCTIONS
     def SampleMemoryT(self, batch_size):
         states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np, indices_np = self._memory.Sample(batch_size)
         states_t, actions_t, next_states_t, rewards_t, dones_t, weights_t = self.ConvertNPWeightedMemoryToTensor(states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
@@ -459,9 +584,9 @@ class QLearningAgent(Agent):
     def ConvertNPMemoryToTensor(self, states_np, actions_np, next_states_np, rewards_np, dones_np):
         if self._state_is_tuple:
             states_t = []
-            for state in states_np:
-                state_t = torch.tensor(state, dtype=torch.float32, device=self._device)
-                states_t.append(state_t)
+            for states in states_np:
+                states_t = torch.tensor(states, dtype=torch.float32, device=self._device)
+                states_t.append(states_t)
 
             next_states_t = []
             for next_state in next_states_np:
@@ -477,6 +602,6 @@ class QLearningAgent(Agent):
 
         return states_t, actions_t, next_states_t, rewards_t, dones_t
 
-    def LoadStateDict(self, state_dict):
-        self._model.load_state_dict(state_dict)
-        self._target_model.load_state_dict(state_dict)
+    def LoadNetworkStateDict(self, state_dict):
+        self._network.load_state_dict(state_dict)
+        self._target_network.load_state_dict(state_dict)
