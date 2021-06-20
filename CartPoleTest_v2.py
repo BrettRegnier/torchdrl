@@ -1,137 +1,27 @@
-import torchdrl.factories.NeuralNetworkFactory as NeuralNetworkFactory
-import torchdrl.factories.OptimizerFactory as OptimizerFactory
-import torchdrl.factories.SchedulerFactory as SchedulerFactory
-import torchdrl.factories.MemoryFactory as MemoryFactory
-
-from torchdrl.agents.q_learning.DQL import DQL
-from torchdrl.agents.q_learning.QLearningAgent import QLearningAgent
-from torchdrl.actions.EpsilonGreedy import EpsilonGreedy
 import gym
+from torchdrl.managers.RLManager import RLManager
+import torchdrl.factories.AgentFactory as AgentFactory
 
 config = {
-    "envs[0]": {
-        "name": "BoatLeftRight_v0",
+    "env": {
+        "name": "CartPole-v0",
         "num": 1,
         "kwargs": {
-            "num_participants": 8,
-            "num_locked": 0,
-            "lr_goal": 0,
-            "lr_relax": 0,
-            "fb_goal": 30,
-            "fb_relax": 0,
-            "rower_state_mode": "2D",
-            "rowers_state_normalize": False,
-            "include_boat_state_weight": False,
-            "reward_mode": "sparse"
         }
     },
-    "supervised_agent": {
-        "device": "cuda",
-        "epochs": 120,
-        "shuffle": True,
-        "batch_size": 512,
-        "kwargs": {
-            "scheduler_step_type": "epoch",
-            "step_window": 500,
-            "evaluate_per_print": False,
-            "evaluate_amt": 1000,
-            "printing_type": "step",
-            "print_mode": "verbose"
-        },
-        "dataset": {
-            "train_set_dir": "dataset/db8_leftright/lg",
-            "multi_keys": False
-        },
-        "optimizer": {
-            "name": "adam",
-            "kwargs": {
-                # 0.0005 is maximum val
-                "lr": 0.0004,  # 0.0004 best so far
-                "weight_decay": 0.0,
-                "amsgrad": True
-            }
-        },
-        "scheduler": {
-            "name": "StepLR",
-            "kwargs": {
-                "step_size": 1,
-                "gamma": 1
-            }
-        },
-        "model": {
-            "sequential": {
-                "conv2d": {
-                    "filters": [
-                        64
-                    ],
-                    "kernels": [
-                        [2, 1]
-                    ],
-                    "strides": [
-                        [1, 1]
-                    ],
-                    "paddings": [
-                        0
-                    ],
-                    "activations": [
-                        "sigmoid"
-                    ],
-                    "pools": [
-                    ],
-                    "flatten": True
-                },
-                "fullyconnected": {
-                    "hidden_layers": [
-                        1024,
-                        512
-                    ],
-                    "activations": [
-                        "sigmoid",
-                        "sigmoid",
-                    ],
-                    "dropouts": [],
-                    "out_features": 256,
-                    "final_activation": "sigmoid"
-                }
-            },
-            "head": {
-                "fullyconnected": {
-                    "hidden_layers": [
-                    ],
-                    "activations": [
-                    ],
-                    "dropouts": [],
-                    "out_features": None,
-                    "final_activation": None
-                }
-            }
-        },
-    },
     "q_learning_agent": {
-        "device": "cuda",
         "type": "DoubleDQL",
-        "name": "Cartpole",
+        "name": "CartPole_v3",
         "batch_size": 32, 
         "kwargs": {
             "clip_grad": 10, 
             "gamma": 0.99, 
             "target_update_frequency": 100, 
             "tau": 1.0,
-            "step_window": 1,
-            "reward_window": 10,
-            "reward_goal": 200,
             "max_steps_per_episode": 200,
-            "warm_up": 0,
-            "train_checkpoint": True,
-            "evaluate_checkpoint": False,
-            "evaluate_episodes": 100,
-            "evaluate_frequency": 10,
-            "checkpoint_root": "models/checkpoints",
-            "checkpoint_frequency": 10,
-            "checkpoint_max_count": 5,
-            "visualize": False,
-            "visualize_frequency": -1,
-            "seed": -1
+            "seed": 0,
+            "warm_up": -1,
+            "device": "cuda",
         },
         "action_function": {
             "name": "EpsilonGreedy", 
@@ -192,48 +82,36 @@ config = {
                 }
             }
         }
+    },
+    "manager": {
+        "name": "rlmanager",
+        "kwargs": {
+            "metrics": {
+
+            },
+            "step_window": 1,
+            "reward_window": 100,
+            "reward_goal": 195,
+            "train_checkpoint": True,
+            "evaluate_checkpoint": True,
+            "evaluate_episodes": 100,
+            "evaluate_frequency": 10,
+            "checkpoint_root": "models/checkpoints",
+            "checkpoint_frequency": 10,
+            "checkpoint_max_count": 5,
+            "visualize": False,
+            "visualize_frequency": -1,
+        }
     }
 }
 
+# TODO move into a factory
 envs = []
-for _ in range(1):
+for i in range(1):
     envs.append(gym.make("CartPole-v0"))
-q_learning_config = config['q_learning_agent']
-device = q_learning_config['device']
 
-# reinforcement learning
-model = NeuralNetworkFactory.CreateNetwork(
-    q_learning_config['model'], envs[0].observation_space, envs[0].action_space, device)
-q_learning_optimizer = OptimizerFactory.CreateOptimizer(
-    q_learning_config['optimizer']['name'], (model.parameters(),), q_learning_config['optimizer']['kwargs'])
-q_learning_scheduler = SchedulerFactory.CreateScheduler(
-    q_learning_config['scheduler']['name'], q_learning_optimizer, q_learning_config['scheduler']['kwargs'])
-memory = MemoryFactory.CreateMemory(
-    q_learning_config['memories']['memory']['name'], envs[0].observation_space, q_learning_config['memories']['memory']['kwargs'])
+q_learning_agent = AgentFactory.CreateQLearningAgent(config['q_learning_agent'], envs)
 
-memory_n_step = None
-if 'memory_n_step' in q_learning_config['memories']:
-    memory_n_step = MemoryFactory.CreateMemory(
-        q_learning_config['memories']['memory_n_step']['name'], envs[0].observation_space, q_learning_config['memories']['memory_n_step']['kwargs'])
+manager = RLManager(q_learning_agent, **config['manager']['kwargs'])
 
-action_function = EpsilonGreedy(**q_learning_config['action_function']['kwargs'])
-loss_function = DQL(device)
-
-q_learning_args = (
-    q_learning_config['name'], 
-    envs, 
-    model,
-    action_function,
-    loss_function,
-    q_learning_optimizer, 
-    q_learning_config['batch_size'], 
-    memory
-)
-q_learning_kwargs = q_learning_config['kwargs']
-q_learning_kwargs['memory_n_step'] = memory_n_step
-q_learning_kwargs['scheduler'] = q_learning_scheduler
-q_learning_kwargs['device'] = device
-
-agent = QLearningAgent(*q_learning_args, **q_learning_kwargs)
-
-agent.TrainNoYield()
+manager.TrainNoYield()

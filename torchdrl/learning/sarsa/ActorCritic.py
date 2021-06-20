@@ -9,7 +9,7 @@ import numpy as np
 import gym 
 
 import torchdrl.tools.Helper as Helper
-from torchdrl.agents.sarsa.SARSAAgent import SARSAAgent
+from torchdrl.agents.SARSAAgent import SARSAAgent
 
 class ActorCriticAgent(SARSAAgent):
     def __init__(self, trace_decay, *args, **kwargs):

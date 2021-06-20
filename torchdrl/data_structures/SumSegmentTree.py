@@ -32,7 +32,10 @@ class SumSegmentTree:
     def Add(self, priority):
         self.UpdatePriority(self._pointer, priority)
 
-        self._pointer = (self._pointer % self._capacity) + 1
+        self._pointer += 1
+        if self._pointer % (self._capacity + 1) == 0:
+            self._pointer = 0
+
         if self._entries < self._capacity:
             self._entries += 1
 
@@ -51,4 +54,3 @@ class SumSegmentTree:
         while idx != 0:
             idx = (idx - 1) // 2
             self._tree[idx] = self._tree[2*idx+1] + self._tree[2*idx+2]
-

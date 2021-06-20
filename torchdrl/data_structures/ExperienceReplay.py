@@ -68,9 +68,7 @@ class ExperienceReplay:
                 self._states[0][self._pointer] = state
                 self._next_states[0][self._pointer] = next_state
 
-            # self._states[self._pointer] = state
             self._actions[self._pointer] = action
-            # self._next_states[self._pointer] = next_state
             self._rewards[self._pointer] = reward
             self._dones[self._pointer] = done
 
@@ -90,12 +88,25 @@ class ExperienceReplay:
         return self.SampleBatchFromIndices(indices_np) + (indices_np,)
 
     def SampleBatchFromIndices(self, indices):
+        return self._GetMemories(indices)
+
+    def _Rollout(self):
+        # get the last experience
+        next_state, reward, done = self._n_step_buffer[-1][-3:]
+
+        for experience in reversed(list(self._n_step_buffer)[:-1]):
+            n_next_state, n_reward, n_done = experience[-3:]
+
+            reward = n_reward + self._gamma * reward * (1 - n_done)
+            
+            if n_done:
+                next_state = n_next_state
+                done = n_done
+
+        return next_state, reward, done
+    
+    def _GetMemories(self, indices):
         weights = np.ones(len(indices), dtype=np.float32)
-        
-        # if self._use_objects:
-        #     states = self._states[indices]
-        #     states_np = np.vstack(states)
-        #     print(states_np)
         
         if self._n_states > 1:
             states = []
@@ -115,21 +126,6 @@ class ExperienceReplay:
             self._dones[indices],
             weights
         )
-
-    def _Rollout(self):
-        # get the last experience
-        next_state, reward, done = self._n_step_buffer[-1][-3:]
-
-        for experience in reversed(list(self._n_step_buffer)[:-1]):
-            n_next_state, n_reward, n_done = experience[-3:]
-
-            reward = n_reward + self._gamma * reward * (1 - n_done)
-            
-            if n_done:
-                next_state = n_next_state
-                done = n_done
-
-        return next_state, reward, done
 
     def __len__(self):
         return self._size

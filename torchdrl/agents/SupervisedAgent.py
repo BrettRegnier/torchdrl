@@ -11,7 +11,7 @@ from torchdrl.agents.Agent import Agent
 # make a custom dataset that uses the env from my dragonboat.
 
 # TODO add testing frequency
-class Supervised(Agent):
+class SupervisedAgent(Agent):
     def __init__(self,
         model, 
         optimizer, 

@@ -1,15 +1,12 @@
+from typing import Iterable
 import numpy as np
 import collections
 
 import time
 
-from .ExperienceReplay import ExperienceReplay
+from torchdrl.data_structures.PrioritizedExperienceReplay import PrioritizedExperienceReplay
 
-class ApexExperieceReplay(ExperienceReplay):
-    def __init__(self, capacity, input_shape, n_step=1, gamma=0.99):
-        super(ApexExperieceReplay, self).__init__(capacity, input_shape, n_step, gamma)
-        self._errors = np.zeros(self._capacity, dtype=np.float32)
-            
+class ApexExperieceReplay(PrioritizedExperienceReplay):            
     def BatchAppend(self, states, actions, next_states, rewards, dones, errors, batch_size):
         for i in range(batch_size):
             self.Append(states[i], actions[i], next_states[i], rewards[i], dones[i], errors[i])
@@ -20,59 +17,40 @@ class ApexExperieceReplay(ExperienceReplay):
 
         # set the ready flag off
         self._ReadyDown()
-    
-        transition = (state, action, next_state, reward, done, error)
-        self._n_step_buffer.append(transition)
 
-        if len(self._n_step_buffer) >= self._n_step:
-            # create a n-step transition
-            n_next_state, n_reward, n_done, n_error = self._GetNStepInfo(self._n_step_buffer, self._gamma)
-            n_state, n_action = self._n_step_buffer[0][:2]
-
-            self._states[self._pointer] = n_state
-            self._actions[self._pointer] = n_action
-            self._next_states[self._pointer] = n_next_state
-            self._rewards[self._pointer] = n_reward
-            self._dones[self._pointer] = n_done
-            self._errors[self._pointer] = n_error
-            
-            self._pointer = (self._pointer + 1) % self._capacity
-            if self._size < self._capacity:
-                self._size += 1
-
-            transition = self._n_step_buffer[0]
-        else:
-            transition = ()
-
+        # constantly update this value so that it will be returned implicitly
+        self._max_priority = error
+        transition = super().Append(state, action, next_state, reward, done)
+        
         # set the ready flag on
         self._ReadyUp()
 
         return transition
+
+    def _CalculatePriority(self, priority):
+        return priority
         
     def Sample(self, batch_size):
         self._WaitStatus()
 
         self._ReadyDown()
-
-        indices = np.random.choice(self._size, batch_size, replace=False)
-        states_np, actions_np, next_states_np, rewards_np, dones_np = self._GetMemories(indices)
-        errors_np = self._errors[indices]
+        
+        states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np, indices_np = super().Sample(batch_size)
 
         self._ReadyUp()
 
-        return (states_np, actions_np, next_states_np, rewards_np, dones_np, errors_np)
+        return (states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np, indices_np)
 
     def SampleBatchFromIndices(self, indices):
         self._WaitStatus()
 
         self._ReadyDown()
 
-        states_np, actions_np, next_states_np, rewards_np, dones_np = self._GetMemories(indices)
-        errors_np = self._errors[indices]
+        states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np = self.SampleBatchFromIndices(indices)
 
         self._ReadyUp()
 
-        return (states_np, actions_np, next_states_np, rewards_np, dones_np, errors_np)
+        return (states_np, actions_np, next_states_np, rewards_np, dones_np, weights_np)
 
     def Pop(self, batch_size):
         self._WaitStatus()
@@ -99,10 +77,13 @@ class ApexExperieceReplay(ExperienceReplay):
         self._dones[:-batch_size] = self._dones[batch_size:]
         self._dones[-batch_size:] = 0
 
-        self._errors[:-batch_size] = self._errors[batch_size:]
-        self._errors[-batch_size:] = 0
-
-        self._pointer = max(0, self._pointer - batch_size)
+        for i in range((self._sum_tree._capacity+1) - batch_size):
+            self._sum_tree.UpdatePriority(i, self._sum_tree[i+batch_size])
+            self._sum_tree.UpdatePriority(i+batch_size, 0)
+        
+        # Slide the pointer back a little or move to the now new open spots are
+        self._sum_tree._pointer = self._sum_tree._capacity - (self._sum_tree._capacity - batch_size)
+        self._pointer = self._capacity - (self._capacity - batch_size)
         self._size -= batch_size
 
         # set the ready flag on
@@ -110,15 +91,20 @@ class ApexExperieceReplay(ExperienceReplay):
 
         return states_np, actions_np, next_states_np, rewards_np, dones_np, errors_np, indices_np
 
-    def _GetNStepInfo(self, n_step_buffer, gamma):
-        next_state, reward, done, error = n_step_buffer[-1][-4:]
+    def _Rollout(self):
+        # get the last experience
+        next_state, reward, done, error = self._n_step_buffer[-1][-3:]
 
-        for transition in reversed(list(n_step_buffer)[:-1]):
-            n_s, r, d, err = transition[-4:]
+        for experience in reversed(list(self._n_step_buffer)[:-1]):
+            n_next_state, n_reward, n_done, n_err = experience[-3:]
 
-            reward = r + gamma * reward * (1-d)
-            next_state, done, error = (n_s, d, err) if d else (next_state, done, error)
-        
+            reward = n_reward + self._gamma * reward * (1 - n_done)
+            
+            if n_done:
+                next_state = n_next_state
+                done = n_done
+                error = n_err
+
         return next_state, reward, done, error
 
     def _WaitStatus(self):

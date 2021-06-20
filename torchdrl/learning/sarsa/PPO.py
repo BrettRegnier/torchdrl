@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import torch.distributions as distributions
 
 import torchdrl.tools.Helper as Helper
-from torchdrl.agents.sarsa.SARSAAgent import SARSAAgent
+from torchdrl.agents.SARSAAgent import SARSAAgent
 
 class PPO(SARSAAgent):
     def __init__(self, ppo_steps, ppo_clip, *args, **kwargs):
