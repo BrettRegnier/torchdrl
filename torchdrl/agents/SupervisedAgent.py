@@ -73,7 +73,8 @@ class SupervisedAgent(Agent):
                 total_steps += 1
 
                 train_info = {}
-                samples, targets = samples.to(self._device), targets.to(self._device)
+                samples = samples.to(self._device)
+                targets = targets.to(self._device)
 
                 self._optimizer.zero_grad()
 
@@ -135,14 +136,14 @@ class SupervisedAgent(Agent):
         msg = ""
         if self._print_mode == "simple":
             out_of = str(epoch) + "/" + str(epochs)
-            msg = f"[Epoch {out_of:>6}] Total Steps: {total_steps:>7}, Steps: {steps:>6} -> Train Loss: {avg_loss:.4f}, Accuracy: {accuracy:.3f}"
+            msg = f"[Epoch {out_of:>6}] Total Steps: {total_steps:>7}, Steps: {steps:>6} -> Train Loss: {avg_loss:.4f}, Accuracy: {accuracy*100:.2f}%"
         else:
             total_space = 50
             progress = int(((total_steps-1) / self._total_train_size) * total_space)
             white_space = (total_space - progress) - 1
 
             out_of = str(epoch) + "/" + str(epochs)
-            msg = f"[Epoch {out_of:>6}] Total Steps: {total_steps:>7}, Steps: {steps:>6} [" + "=" * progress + ">" + " " * (white_space) + f"] Train Loss: {avg_loss:.4f}, Accuracy: {accuracy:.3f}"
+            msg = f"[Epoch {out_of:>6}] Total Steps: {total_steps:>7}, Steps: {steps:>6} [" + "=" * progress + ">" + " " * (white_space) + f"] Train Loss: {avg_loss:.4f}, Accuracy: {accuracy*100:.2f}%"
 
         return msg
 
@@ -157,8 +158,15 @@ class SupervisedAgent(Agent):
 
         test_info = {}
         if isinstance(self._testset_loader, (data_utils.DataLoader,)):
-            # data loader TODO
-            pass
+            for samples, targets in self._testset_loader:
+                samples = samples.to(self._device)
+                targets = targets.to(self._device)
+
+                predictions = torch.argmax(self._model(samples), dim=1)
+                corrects = predictions.eq(targets)
+                accuracy = torch.mean(corrects.float())
+
+                test_info['accuracy'] = accuracy
         else:
             # env
             wins = 0
@@ -195,7 +203,6 @@ class SupervisedAgent(Agent):
                 total_steps += steps
             end = time.time()
 
-            test_info['epochs'] = epochs
             test_info['total_steps'] = total_steps
             test_info['avg_steps'] = round(total_steps / epochs, 1)
             test_info['avg_reward'] = round(total_reward / epochs, 3)
@@ -203,24 +210,27 @@ class SupervisedAgent(Agent):
             if 'win' in info:
                 test_info['wins'] = wins
                 test_info['loses'] = loses
-                test_info['accuracy'] = round((float(wins) / float(wins+loses)) * 100, 2)
+                test_info['accuracy'] = float(wins) / float(wins+loses)
 
+        test_info['epochs'] = epochs
+
+        self._save_info['test_info'] = test_info
         test_msg = self.TestMessage(test_info)
 
         return test_info, test_msg
 
     def TestMessage(self, test_info):
-        avg_steps = test_info['avg_steps']
 
-        wins = test_info['wins'] if 'wins' in test_info else ""
-        loses = test_info['loses'] if 'loses' in test_info else ""
-        accuracy = test_info['accuracy'] if 'accuracy' in test_info else ""
-
-        if self._print_mode == "simple":
-            msg = f"Test: Average Steps: {avg_steps}, Accuracy: {accuracy} | W:{wins} L:{loses}"
-        else:
-            msg = f"Test: Average Steps: {avg_steps}, Accuracy: {accuracy} | W:{wins} L:{loses}"
-
+        msg = "Test: "
+        if 'accuracy' in test_info:
+            msg += f"Accuracy: {test_info['accuracy']*100:.2f}% "
+        if self._print_mode != "simple":
+            if 'avg_steps' in test_info:
+                msg += f"Average Steps: {test_info['avg_steps']}"
+            if 'wins' in test_info:
+                msg += f"W: {test_info['wins']} "
+            if 'loses' in test_info:
+                msg += f"L: {test_info['loses']} "
         return msg
 
     def GetAction(self, state):
@@ -248,6 +258,9 @@ class SupervisedAgent(Agent):
         self._save_info['optimizer'] = self._optimizer.state_dict()
 
         self._save_info['epochs'] = self._epochs
+
+        self._save_info['loss_list'] = self._loss_list
+        self._save_info['train_accuracy_list'] = self._acc_list
 
         if self._scheduler:
             self._save_info['sched_step_size'] = self._scheduler.state_dict()['step_size']

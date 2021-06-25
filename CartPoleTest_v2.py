@@ -1,4 +1,9 @@
+import random
+
+import torch
+import numpy as np 
 import gym
+
 from torchdrl.managers.RLManager import RLManager
 import torchdrl.factories.AgentFactory as AgentFactory
 
@@ -16,10 +21,10 @@ config = {
         "kwargs": {
             "clip_grad": 10, 
             "gamma": 0.99, 
-            "target_update_frequency": 100, 
+            "target_update_frequency": 200, 
             "tau": 1.0,
             "max_steps_per_episode": 200,
-            "seed": 0,
+            "seed": 0, # REMOVE move it as a top level config
             "warm_up": -1,
             "device": "cuda",
         },
@@ -58,10 +63,8 @@ config = {
             "sequential": {
                 "fullyconnected": {
                     "hidden_layers": [
-                        1024
                     ],
                     "activations": [
-                        "relu"
                     ],
                     "dropouts": [],
                     "out_features": 1024,
@@ -72,8 +75,10 @@ config = {
                 "dueling": {
                     "hidden_layers": [
                         1024,
+                        1024,
                     ],
                     "activations": [
+                        "relu",
                         "relu"
                     ],
                     "dropouts": [],
@@ -94,8 +99,8 @@ config = {
             "reward_goal": 195,
             "train_checkpoint": True,
             "evaluate_checkpoint": True,
-            "evaluate_episodes": 100,
-            "evaluate_frequency": 10,
+            "evaluate_episodes": 1,
+            "evaluate_frequency": 5,
             "checkpoint_root": "models/checkpoints",
             "checkpoint_frequency": 10,
             "checkpoint_max_count": 5,
@@ -109,6 +114,19 @@ config = {
 envs = []
 for i in range(1):
     envs.append(gym.make("CartPole-v0"))
+
+    
+
+# set the seed
+seed = 0
+if seed >= 0:
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    # Seed envs
+    for i, env in enumerate(envs):
+        env.seed(seed+i)
 
 q_learning_agent = AgentFactory.CreateQLearningAgent(config['q_learning_agent'], envs)
 

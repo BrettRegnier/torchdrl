@@ -157,7 +157,8 @@ class RLManager:
                     wins = 0
                     loses = 0
 
-                if self._evaluate_frequency > 0 and eval_count > self._evaluate_frequency:
+                eval_count += 1
+                if self._evaluate_frequency > 0 and eval_count % self._evaluate_frequency == 0:
                     test_info, test_msg = self.Evaluate(self._evaluate_episodes)
                     eval_count = 0
                 
@@ -185,7 +186,6 @@ class RLManager:
                 self._agent.Stop()
                 stop_training = True
 
-            eval_count += 1
 
         # finished training save self.
         folderpath = f"{self._checkpoint_root}/{self._agent._name}/final"

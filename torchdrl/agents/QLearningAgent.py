@@ -33,7 +33,7 @@ class QLearningAgent(Agent):
             tau=1,
             visualize=False,
             visualize_frequency=-1,
-            seed=-1,
+            seed=-1, # REMOVE
             warm_up=0,
             oracle=None,
             device="cpu"
@@ -69,17 +69,6 @@ class QLearningAgent(Agent):
         self._warm_up = warm_up
         self._oracle = oracle
         self._device = device 
-
-        # set the seed
-        self._seed = seed
-        if self._seed >= 0:
-            np.random.seed(self._seed)
-            random.seed(self._seed)
-            torch.manual_seed(self._seed)
-
-            # Seed envs
-            for i, env in enumerate(self._envs):
-                env.seed(self._seed+i)
 
         self._train_last_state_dict = 0
         self._evaluate_last_state_dict = 0
@@ -258,6 +247,7 @@ class QLearningAgent(Agent):
         
         if self._target_update_steps % self._target_update_frequency == 0:
             Helper.UpdateNetwork(self._network, self._target_network, self._tau)
+            # self._target_network.load_state_dict(self._network.state_dict())
             self._target_update_steps = 0
 
         self._target_update_steps += 1

@@ -86,33 +86,31 @@ def CreateQLearningAgent(config, envs):
     agent = QLearningAgent(*q_learning_args, **q_learning_kwargs)
     return agent
 
-# BUG
-# def CreateSupervisedAgent(config, env):
-#     supervised_config = config
-#     device = supervised_config['device']
+def CreateSupervisedAgent(config, trainset_dataloader, testset_dataloader):
+    #TODO make this better... its sooooo bad rn
+    import gym
+    supervised_config = config
+    device = supervised_config['device']
 
-#     # supervised learning
-#     model = NeuralNetworkFactory.CreateNetwork(
-#         supervised_config['model'], env.observation_space, env.action_space, device)
-#     supervised_optimizer = OptimizerFactory.CreateOptimizer(
-#         supervised_config['optimizer']['name'], (model.parameters(),), supervised_config['optimizer']['kwargs'])
-#     # TODO move into a factory? // Note this is categorical cross entropy loss
-#     criterion = nn.CrossEntropyLoss()  
+    # supervised learning
+    observation_space = trainset_dataloader.dataset[0][0]
+    action_space = gym.spaces.Discrete(len(trainset_dataloader.dataset.datasets))
+    model = NeuralNetworkFactory.CreateNetwork(
+        supervised_config['model'], observation_space, action_space, device)
+    supervised_optimizer = OptimizerFactory.CreateOptimizer(
+        supervised_config['optimizer']['name'], (model.parameters(),), supervised_config['optimizer']['kwargs'])
+    # TODO move into a factory? // Note this is categorical cross entropy loss
+    criterion = nn.CrossEntropyLoss()  
 
-#     # FIX need to make a generic dataset retriever...
-#     trainset = BoatDatasetRetriever.GetDataset(
-#         supervised_config['dataset']['train_set_dir'], supervised_config['dataset']['multi_keys'])
-#     trainset_dataloader = data_utils.DataLoader(
-#         trainset, shuffle=supervised_config['shuffle'], batch_size=supervised_config['batch_size'], num_workers=0)
-#     supervised_scheduler = SchedulerFactory.CreateScheduler(
-#         supervised_config['scheduler']['name'], supervised_optimizer, supervised_config['scheduler']['kwargs'])
+    supervised_scheduler = SchedulerFactory.CreateScheduler(
+        supervised_config['scheduler']['name'], supervised_optimizer, supervised_config['scheduler']['kwargs'])
 
-#     supervised_args = (model, supervised_optimizer,
-#                        criterion, trainset_dataloader, env)
-#     supervised_kwargs = supervised_config['kwargs']
-#     # supervised_kwargs["scheduler"] = supervised_scheduler
+    supervised_args = (model, supervised_optimizer,
+                       criterion, trainset_dataloader, testset_dataloader)
+    supervised_kwargs = supervised_config['kwargs']
+    # supervised_kwargs["scheduler"] = supervised_scheduler
 
-#     supervised_agent = SupervisedAgent(
-#         *supervised_args, **supervised_kwargs, device=device)
+    supervised_agent = SupervisedAgent(
+        *supervised_args, **supervised_kwargs, device=device)
 
-#     return supervised_agent
+    return supervised_agent
