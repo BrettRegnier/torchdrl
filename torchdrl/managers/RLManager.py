@@ -76,8 +76,8 @@ class RLManager:
         self._train_last_checkpoint = 0
 
         # Evaluation variables
-        self._avg_test_score = -math.inf
-        self._test_scores = []
+        self._total_avg_test_score = -math.inf
+        self._test_score_history = []
         self._evaluate_checkpoint_count = 0
 
     def Train(self, num_episodes=math.inf, num_steps=math.inf):
@@ -119,10 +119,18 @@ class RLManager:
         stop_training = False
 
         self._chart_metrics = {
-            "episode": [],
-            "score": [],
-            "loss": [],
-            "steps": [],
+            "train": {
+                "episode": [],
+                "score": [],
+                "loss": [],
+                "steps": [],
+            },
+            "test": {
+                "episode": [],
+                "score": [],
+                "steps": [],
+                "accuracy": [], # TODO move to dragon boat manager lol
+            }
         }
 
         for (episode_score, episode_steps, episode_loss, ep_info) in self._agent.PlayEpisode(evaluate=False):
@@ -190,10 +198,10 @@ class RLManager:
                 train_info.update(ep_info)
 
                 if self._record_chart_metrics:
-                    self._chart_metrics['episode'].append(self._episode)
-                    self._chart_metrics['score'].append(avg_score)
-                    self._chart_metrics['loss'].append(avg_loss)
-                    self._chart_metrics['steps'].append(avg_steps)
+                    self._chart_metrics["train"]['episode'].append(self._episode)
+                    self._chart_metrics["train"]['score'].append(avg_score)
+                    self._chart_metrics["train"]['loss'].append(avg_loss)
+                    self._chart_metrics["train"]['steps'].append(avg_steps)
 
                 train_msg = self.TrainMessage(train_info)
 
@@ -252,7 +260,9 @@ class RLManager:
 
     def TrainNoYield(self, num_episodes=math.inf, num_steps=math.inf):
         for _, train_msg, _, test_msg in self.Train(num_episodes, num_steps):
-            print(train_msg, test_msg)
+            print(train_msg)
+            if test_msg != "":
+                print(test_msg)
 
     def TrainMessage(self, train_info):
         msg = ""
@@ -275,7 +285,7 @@ class RLManager:
             out_of = str(episode) + "/" + str(episodes)
 
         #TODO use colorama
-        msg = f"[Episode {out_of:>8}] Total Steps: {total_steps:>7}, Ep Steps: {episode_steps:>3}, Avg Steps: {avg_steps:>3} | Ep Score: {episode_score:.2f}, Avg Score: {avg_score:.2f} | Ep Loss: {episode_loss:.4f}, Avg Loss {avg_loss:.4f}, Total Avg Loss: {total_avg_loss:.4f}"
+        msg = f"[Episode {out_of:>8}] T Steps: {total_steps:>7}, Ep Steps: {episode_steps:>3}, A Steps: {avg_steps:>3} | Ep Score: {episode_score:.2f}, A Score: {avg_score:.2f} | Ep Loss: {episode_loss:.4f}, A Loss {avg_loss:.4f}, T A Loss: {total_avg_loss:.4f}"
         return msg
 
     def Evaluate(self, episodes=100):
@@ -297,14 +307,16 @@ class RLManager:
                 wins += 1 if win == 1 else 0
                 loses += 1 if win == 0 else 0
 
+        avg_score = total_rewards / episodes
+        avg_steps = total_steps / episodes
+
         test_info['eval'] = True
         test_info['agent_name'] = self._agent._name
         test_info['episodes'] = episodes
-        test_info['avg_steps'] = round(total_steps/episodes, 2)
-        test_info['avg_reward'] = round(total_rewards/episodes, 2)
-        test_msg = self._TestMessage(test_info)
+        test_info['avg_steps'] = avg_steps
+        test_info['avg_reward'] = avg_score
 
-        self._test_scores.append(total_rewards/episodes)
+        self._test_score_history.append(total_rewards/episodes)
 
         # TODO move into dragonboat manager
         if 'win' in info:
@@ -313,29 +325,40 @@ class RLManager:
 
             acc = round(wins / (wins+loses)*100)
             test_info['accuracy'] = acc
-            self._test_scores[len(self._test_scores) - 1] = acc
+            self._test_score_history[len(self._test_score_history) - 1] = acc
 
-        self._test_scores = self._test_scores[-self._reward_window:]
-        avg_test_score = np.sum(self._test_scores) / episodes
+            # TODO move into dragon boat manager lol
+            if self._record_chart_metrics:
+                self._chart_metrics['test']['accuracy'] = acc
+
+
+        self._test_score_history = self._test_score_history[-self._reward_window:]
+        total_avg_test_score = np.average(self._test_score_history)
+
+        if self._record_chart_metrics:
+            self._chart_metrics['test']['episode'] = self._episode
+            self._chart_metrics['test']['score'] = avg_score
+            self._chart_metrics['test']['steps'] = avg_steps
 
         if self._evaluate_checkpoint:
             self._evaluate_checkpoint_count = min(self._evaluate_checkpoint_count + 1, self._checkpoint_frequency)
-            if self._evaluate_checkpoint_count == self._checkpoint_frequency and avg_test_score > self._avg_test_score:
+            if self._evaluate_checkpoint_count == self._checkpoint_frequency and total_avg_test_score > self._total_avg_test_score:
                 folderpath = f"{self._checkpoint_root}/{self._agent._name}/evaluation"
-                filename = f"evaluation_score_{avg_test_score}.pt"
+                filename = f"evaluation_score_{total_avg_test_score}.pt"
 
                 self.Checkpoint(folderpath, filename)
-                self._avg_test_score = avg_test_score
+                self._total_avg_test_score = total_avg_test_score
                 self._evaluate_checkpoint_count = 0
 
+        test_msg = self._TestMessage(test_info)
         return test_info, test_msg
 
     def _TestMessage(self, test_info):
-        avg_steps = test_info['avg_steps']
+        avg_steps = int(test_info['avg_steps'])
 
-        msg = f"Test: Average Steps: {avg_steps}"
+        msg = f"[--Test--] Avg Steps: {avg_steps:>3}"
         if 'accuracy' in test_info:
-            msg += f", Accuracy: {test_info['accuracy']}%"
+            msg += f", Acc: {test_info['accuracy']}%"
         if 'wins' in test_info:
             msg += f" | W:{test_info['wins']}"
         if 'loses' in test_info:
@@ -359,7 +382,7 @@ class RLManager:
             'episode': self._episode,
             'total_steps': self._total_steps,
             'avg_loss': self._total_avg_loss,
-            'avg_test_score': self._avg_test_score
+            'total_avg_test_score': self._total_avg_test_score
         }
 
         if self._record_chart_metrics:
@@ -380,5 +403,5 @@ class RLManager:
         self._episode = state_dict['episode']
         self._total_steps = state_dict['total_steps']
         self._total_avg_loss = state_dict['avg_loss']
-        self._avg_test_score = state_dict['avg_test_score']
+        self._total_avg_test_score = state_dict['total_avg_test_score']
 
