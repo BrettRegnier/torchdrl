@@ -52,7 +52,7 @@ class QLearningAgent(Agent):
         self._batch_size = batch_size
         self._memory = memory
         self._memory_n_step = memory_n_step
-        self._scheduler = scheduler # TODO implement
+        self._scheduler = None # TODO implement
 
         # hyperparameters
         self._clip_grad = clip_grad
@@ -274,19 +274,26 @@ class QLearningAgent(Agent):
             'name': self._name,
             'network': self._network.state_dict(),
             'target_network': self._target_network.state_dict(),
-            'architecture': self._network.__str__(),
             'optimizer': self._optimizer.state_dict(),
-            'rl_algorithm': self._rl_algorithm.name,
-            'action_function': self._action_function.state_dict(),
+            'hyperparameters': {
+                'rl_algorithm': self._rl_algorithm.name,
+                'architecture': self._network.__str__(),
+                'action_function': self._action_function.state_dict(),
+                'target_update_frequency': self._target_update_frequency,
+                'clip_grad': self._clip_grad,
+                'gamma': self._gamma,
+                'max_steps_per_episode': self._max_steps_per_episode,
+                'batch_size': self._batch_size
+            }
         }
         
         if self._scheduler:
-            save_info['sched_step_size'] = self._scheduler.state_dict()['step_size']
-            save_info['sched_gamma'] = self._scheduler.state_dict()['gamma']
             save_info['scheduler'] = self._scheduler.state_dict()
-            save_info['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['initial_lr']
+            save_info['hyperparameters']['sched_step_size'] = self._scheduler.state_dict()['step_size']
+            save_info['hyperparameters']['sched_gamma'] = self._scheduler.state_dict()['gamma']
+            save_info['hyperparameters']['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['initial_lr']
         else:
-            save_info['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['lr']
+            save_info['hyperparameters']['learning_rate'] = self._optimizer.state_dict()['param_groups'][0]['lr']
 
         return save_info
 

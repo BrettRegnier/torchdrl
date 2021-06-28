@@ -16,7 +16,7 @@ config = {
     },
     "q_learning_agent": {
         "type": "DoubleDQL",
-        "name": "CartPole_v3",
+        "name": "CartPole_v4",
         "batch_size": 32, 
         "kwargs": {
             "clip_grad": 10, 
@@ -104,6 +104,7 @@ config = {
             "checkpoint_root": "models/checkpoints",
             "checkpoint_frequency": 10,
             "checkpoint_max_count": 5,
+            "record_chart_metrics": True,
             "visualize": False,
             "visualize_frequency": -1,
         }
