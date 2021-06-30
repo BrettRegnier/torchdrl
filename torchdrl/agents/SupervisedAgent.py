@@ -187,10 +187,12 @@ class SupervisedAgent(Agent):
                 samples = samples.to(self._device)
                 targets = targets.to(self._device)
 
-                predictions = torch.argmax(self._model(samples), dim=1)
+                predictions = self._model(samples)
+                total_loss += self._criterion(predictions, targets)
+
+                predictions = torch.argmax(predictions, dim=1)
                 corrects = predictions.eq(targets)
                 total_accuracy += torch.mean(corrects.float())
-                total_loss += self._criterion(predictions, targets)
                 num_items += 1
 
             accuracy = total_accuracy / num_items
