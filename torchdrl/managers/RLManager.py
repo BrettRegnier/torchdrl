@@ -116,7 +116,7 @@ class RLManager:
         test_info = {}
         test_msg = ""
 
-        stop_training = False
+        self._is_training = True
 
         self._chart_metrics = {
             "train": {
@@ -168,7 +168,7 @@ class RLManager:
                 loses += 0 if ep_info['win'] else 1
             # TODO add ep_info update hook
 
-            if self._episode % self._step_window == 0 or stop_training:
+            if self._episode % self._step_window == 0 or not self._is_training:
                 window_score /= self._step_window
                 window_steps /= self._step_window
                 window_loss /= self._step_window                
@@ -243,13 +243,13 @@ class RLManager:
             # Done conditions
             if avg_score >= self._reward_goal and self._episode > 10:
                 self._agent.Stop()
-                stop_training = True
+                self._is_training = False
             if self._episode >= num_episodes:
                 self._agent.Stop()
-                stop_training = True
+                self._is_training = False
             if self._total_steps >= num_steps:
                 self._agent.Stop()
-                stop_training = True
+                self._is_training = False
 
 
         # finished training save self.
@@ -335,7 +335,7 @@ class RLManager:
         self._test_score_history = self._test_score_history[-self._reward_window:]
         total_avg_test_score = np.average(self._test_score_history)
 
-        if self._record_chart_metrics:
+        if self._record_chart_metrics and self._is_training:
             self._chart_metrics['test']['episode'] = self._episode
             self._chart_metrics['test']['score'] = avg_score
             self._chart_metrics['test']['steps'] = avg_steps

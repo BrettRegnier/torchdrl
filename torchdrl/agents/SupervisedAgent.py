@@ -53,6 +53,7 @@ class SupervisedAgent(Agent):
         self._epoch = 0
 
         # TODO make generic some way maybe?
+        self._is_training = False
         self._chart_metrics = {
             "train": 
             {
@@ -71,6 +72,7 @@ class SupervisedAgent(Agent):
     def Train(self, epochs=5):
         assert self._trainset_loader is not None, "No trainset loader provided, either during construction or runtime"
         self._model.train()
+        self._is_training = True
 
         self._epochs = epochs
         self._epoch = 0
@@ -136,6 +138,8 @@ class SupervisedAgent(Agent):
 
             if self._scheduler_step_type == "epoch" and self._scheduler:
                 self._scheduler.step()
+        
+        self._is_training = False
 
     def TrainPredictionInfo(self, predictions, targets, total_loss):                    
         pred = torch.argmax(predictions, dim=1)
@@ -188,18 +192,20 @@ class SupervisedAgent(Agent):
                 targets = targets.to(self._device)
 
                 predictions = self._model(samples)
-                total_loss += self._criterion(predictions, targets)
+                total_loss += self._criterion(predictions, targets).item()
 
                 predictions = torch.argmax(predictions, dim=1)
                 corrects = predictions.eq(targets)
                 total_accuracy += torch.mean(corrects.float())
                 num_items += 1
 
-            accuracy = total_accuracy / num_items
             loss = total_loss / num_items
+            accuracy = total_accuracy / num_items
+
+            test_info['loss'] = accuracy
             test_info['accuracy'] = accuracy
 
-            if self._record_chart_metrics:
+            if self._record_chart_metrics and self._is_training:
                 self._chart_metrics['test']['epoch'].append(self._epoch)
                 self._chart_metrics['test']['loss'].append(loss)
                 self._chart_metrics['test']['accuracy'].append(accuracy)
@@ -256,6 +262,7 @@ class SupervisedAgent(Agent):
         self._save_info['test_info'] = test_info
         test_msg = self.TestMessage(test_info)
 
+        self._model.train()
         return test_info, test_msg
 
     def TestMessage(self, test_info):
