@@ -1,7 +1,7 @@
 import setuptools
 from setuptools import setup
 
-requirements = ['torch>1.6.0', 'torchvision==0.7.0', 'numpy']
+requirements = ['torch==1.6.0', 'torchvision==0.7.0', 'numpy']
 
 setup(name='torchdrl',
     version='0.2',
