@@ -23,9 +23,11 @@ class SupervisedAgent(Agent):
         step_window=500,
         evaluate_per_print=False,
         evaluate_amt=1,
+        record_chart_metrics=False,
         printing_type="step",
         print_mode="simple",
-        device="cpu"):
+        device="cpu"
+    ):
 
         assert isinstance(model, (torch.nn.Module,)), "A pytorch nn.Module is required"
         assert isinstance(optimizer, (torch.optim.Optimizer,)), "A pytorch optim.Optimizer is required, ex. Adam"
@@ -41,20 +43,37 @@ class SupervisedAgent(Agent):
         self._step_window = step_window
         self._evaluate_per_print = evaluate_per_print if evaluate_per_print == True else False
         self._evaluate_amt = evaluate_amt
+        self._record_chart_metrics = record_chart_metrics if record_chart_metrics == True else False
         self._printing_type = printing_type if printing_type == "epoch" else "step"
         self._print_mode = print_mode if print_mode == "simple" else "verbose"
         self._save_info = {}
         self._device = device 
 
         self._epochs = 0
-        self._loss_list = []
-        self._acc_list = []
+        self._epoch = 0
+
+        # TODO make generic some way maybe?
+        self._chart_metrics = {
+            "train": 
+            {
+                "epoch": [],
+                "loss": [],
+                "accuracy": [],
+            },
+            "test":
+            {
+                "epoch": [],
+                "loss": [],
+                "accuracy": [],
+            }
+        }
 
     def Train(self, epochs=5):
         assert self._trainset_loader is not None, "No trainset loader provided, either during construction or runtime"
         self._model.train()
 
         self._epochs = epochs
+        self._epoch = 0
 
         self._total_train_size = len(self._trainset_loader) * self._epochs
 
@@ -66,7 +85,8 @@ class SupervisedAgent(Agent):
         predictions = None
         samples = None
         targets = None
-        for epoch in range(self._epochs):
+        while self._epoch < self._epochs:
+            self._epoch += 1
             steps = 0
             for samples, targets in self._trainset_loader:
                 steps += 1
@@ -88,13 +108,13 @@ class SupervisedAgent(Agent):
                 if total_steps % self._step_window == 0 and self._printing_type == "step":
                     avg_loss, accuracy = self.TrainPredictionInfo(predictions, targets, total_loss)
                     total_loss = 0
-                    train_info = {"epoch": epoch+1, "epochs": self._epochs, "total_steps": total_steps, "steps": steps, "avg_loss": avg_loss, "acc": accuracy} 
+                    train_info = {"epoch": self._epoch, "epochs": self._epochs, "total_steps": total_steps, "steps": steps, "avg_loss": avg_loss, "acc": accuracy}
 
                     test_info = {}
                     test_msg = ""
                     if self._evaluate_per_print:
                         test_info, test_msg = self.Evaluate(self._evaluate_amt, 20)
-                    train_msg = self.TrainMessage(epoch+1, epochs, total_steps, steps, avg_loss, accuracy)
+                    train_msg = self.TrainMessage(self._epoch, epochs, total_steps, steps, avg_loss, accuracy)
                     
                     yield train_info, train_msg, test_info, test_msg
                     
@@ -104,13 +124,13 @@ class SupervisedAgent(Agent):
             if self._printing_type == "epoch":
                 avg_loss, accuracy = self.TrainPredictionInfo(predictions, targets, total_loss)
                 total_loss = 0
-                train_info = {"epoch": epoch+1, "epochs": self._epochs, "total_steps": total_steps, "steps": steps, "avg_loss": avg_loss, "acc": accuracy} 
-                
+                train_info = {"epoch": self._epoch, "epochs": self._epochs, "total_steps": total_steps, "steps": steps, "avg_loss": avg_loss, "acc": accuracy} 
+
                 test_info = {}
                 test_msg = ""
                 if self._evaluate_per_print:
                     test_info, test_msg = self.Evaluate(self._evaluate_amt, 20)
-                train_msg = self.TrainMessage(epoch+1, epochs, total_steps, steps, avg_loss, accuracy)
+                train_msg = self.TrainMessage(self._epoch, epochs, total_steps, steps, avg_loss, accuracy)
 
                 yield train_info, train_msg, test_info, test_msg
 
@@ -123,8 +143,10 @@ class SupervisedAgent(Agent):
         accuracy = torch.mean(correct_pred.float())
         avg_loss = total_loss / self._step_window
 
-        self._loss_list.append(avg_loss)
-        self._acc_list.append(accuracy)
+        if self._record_chart_metrics:
+            self._chart_metrics['epoch'] = self._epoch
+            self._chart_metrics['loss'] = avg_loss
+            self._chart_metrics['accuracy'] = accuracy
 
         return (avg_loss, accuracy)
 
@@ -158,22 +180,34 @@ class SupervisedAgent(Agent):
 
         test_info = {}
         if isinstance(self._testset_loader, (data_utils.DataLoader,)):
+            total_accuracy = 0
+            total_loss = 0
+            num_items = 0
             for samples, targets in self._testset_loader:
                 samples = samples.to(self._device)
                 targets = targets.to(self._device)
 
                 predictions = torch.argmax(self._model(samples), dim=1)
                 corrects = predictions.eq(targets)
-                accuracy = torch.mean(corrects.float())
+                total_accuracy += torch.mean(corrects.float())
+                total_loss += self._criterion(predictions, targets)
+                num_items += 1
 
-                test_info['accuracy'] = accuracy
+            accuracy = total_accuracy / num_items
+            loss = total_loss / num_items
+            test_info['accuracy'] = accuracy
+
+            if self._record_chart_metrics:
+                self._chart_metrics['epoch'] = self._epoch
+                self._chart_metrics['loss'] = loss
+                self._chart_metrics['accuracy'] = accuracy
         else:
             # env
             wins = 0
             loses = 0
-            test_accuracy = 0
             total_steps = 0
             total_reward = 0
+            accuracy = None
 
             start = time.time()
             for i in range(epochs):
@@ -210,7 +244,10 @@ class SupervisedAgent(Agent):
             if 'win' in info:
                 test_info['wins'] = wins
                 test_info['loses'] = loses
-                test_info['accuracy'] = float(wins) / float(wins+loses)
+                accuracy = float(wins) / float(wins+loses)
+                test_info['accuracy'] = accuracy
+            
+
 
         test_info['epochs'] = epochs
 
@@ -258,9 +295,8 @@ class SupervisedAgent(Agent):
         self._save_info['optimizer'] = self._optimizer.state_dict()
 
         self._save_info['epochs'] = self._epochs
-
-        self._save_info['loss_list'] = self._loss_list
-        self._save_info['train_accuracy_list'] = self._acc_list
+        
+        self._save_info['charts'] = self._chart_metrics
 
         if self._scheduler:
             self._save_info['sched_step_size'] = self._scheduler.state_dict()['step_size']
