@@ -144,9 +144,9 @@ class SupervisedAgent(Agent):
         avg_loss = total_loss / self._step_window
 
         if self._record_chart_metrics:
-            self._chart_metrics['epoch'] = self._epoch
-            self._chart_metrics['loss'] = avg_loss
-            self._chart_metrics['accuracy'] = accuracy
+            self._chart_metrics['train']['epoch'].append(self._epoch)
+            self._chart_metrics['train']['loss'].append(avg_loss)
+            self._chart_metrics['train']['accuracy'].append(accuracy)
 
         return (avg_loss, accuracy)
 
@@ -200,9 +200,9 @@ class SupervisedAgent(Agent):
             test_info['accuracy'] = accuracy
 
             if self._record_chart_metrics:
-                self._chart_metrics['epoch'] = self._epoch
-                self._chart_metrics['loss'] = loss
-                self._chart_metrics['accuracy'] = accuracy
+                self._chart_metrics['test']['epoch'].append(self._epoch)
+                self._chart_metrics['test']['loss'].append(loss)
+                self._chart_metrics['test']['accuracy'].append(accuracy)
         else:
             # env
             wins = 0
