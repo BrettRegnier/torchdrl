@@ -238,7 +238,7 @@ class RLManager:
                     folderpath = f"{self._checkpoint_root}/{self._agent._name}/milestone"
                     filename = f"episode_{self._episode}_score_{round(avg_score, 2)}.pt"
 
-                    self.Checkpoint(folderpath, filename)                 
+                    self.Save(folderpath, filename)                 
 
             # Done conditions
             if avg_score >= self._reward_goal and self._episode > 10:
