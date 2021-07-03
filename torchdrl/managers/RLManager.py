@@ -329,16 +329,16 @@ class RLManager:
 
             # TODO move into dragon boat manager lol
             if self._record_chart_metrics:
-                self._chart_metrics['test']['accuracy'] = acc
+                self._chart_metrics['test']['accuracy'].append(acc)
 
 
         self._test_score_history = self._test_score_history[-self._reward_window:]
         total_avg_test_score = np.average(self._test_score_history)
 
         if self._record_chart_metrics and self._is_training:
-            self._chart_metrics['test']['episode'] = self._episode
-            self._chart_metrics['test']['score'] = avg_score
-            self._chart_metrics['test']['steps'] = avg_steps
+            self._chart_metrics['test']['episode'].append(self._episode)
+            self._chart_metrics['test']['score'].append(avg_score)
+            self._chart_metrics['test']['steps'].append(avg_steps)
 
         if self._evaluate_checkpoint:
             self._evaluate_checkpoint_count = min(self._evaluate_checkpoint_count + 1, self._checkpoint_frequency)
