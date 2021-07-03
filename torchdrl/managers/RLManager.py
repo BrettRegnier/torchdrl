@@ -213,10 +213,11 @@ class RLManager:
                     wins = 0
                     loses = 0
 
-                eval_count += 1
-                if self._evaluate_frequency > 0 and eval_count % self._evaluate_frequency == 0:
-                    test_info, test_msg = self.Evaluate(self._evaluate_episodes)
-                    eval_count = 0
+                if self._evaluate_frequency > 0:
+                    eval_count += 1
+                    if eval_count >= self._evaluate_frequency:
+                        test_info, test_msg = self.Evaluate(self._evaluate_episodes)
+                        eval_count = 0
                 
                 window_score = 0
                 window_steps = 0
@@ -238,7 +239,7 @@ class RLManager:
                     folderpath = f"{self._checkpoint_root}/{self._agent._name}/milestone"
                     filename = f"episode_{self._episode}_score_{round(avg_score, 2)}.pt"
 
-                    self.Save(folderpath, filename)                 
+                    self.Save(folderpath, filename)
 
             # Done conditions
             if avg_score >= self._reward_goal and self._episode > 10:
