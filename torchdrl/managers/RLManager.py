@@ -73,6 +73,7 @@ class RLManager:
         self._best_score = 0
         
         # Training variables
+        self._is_training = False
         self._train_last_checkpoint = 0
 
         # Evaluation variables
