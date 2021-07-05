@@ -168,6 +168,18 @@ class RLManager:
                 loses += 0 if ep_info['win'] else 1
             # TODO add ep_info update hook
 
+            # Check done conditions
+            if avg_score >= self._reward_goal and self._episode > self._step_window:
+                self._agent.Stop()
+                self._is_training = False
+            if self._episode >= num_episodes:
+                self._agent.Stop()
+                self._is_training = False
+            if self._total_steps >= num_steps:
+                self._agent.Stop()
+                self._is_training = False
+
+            # preint every step window size, or if it is done training
             if self._episode % self._step_window == 0 or not self._is_training:
                 window_score /= self._step_window
                 window_steps /= self._step_window
@@ -240,18 +252,6 @@ class RLManager:
                     filename = f"episode_{self._episode}_score_{round(avg_score, 2)}.pt"
 
                     self.Save(folderpath, filename)
-
-            # Done conditions
-            if avg_score >= self._reward_goal and self._episode > 10:
-                self._agent.Stop()
-                self._is_training = False
-            if self._episode >= num_episodes:
-                self._agent.Stop()
-                self._is_training = False
-            if self._total_steps >= num_steps:
-                self._agent.Stop()
-                self._is_training = False
-
 
         # finished training save self.
         folderpath = f"{self._checkpoint_root}/{self._agent._name}/final"
@@ -329,7 +329,7 @@ class RLManager:
             self._test_score_history[len(self._test_score_history) - 1] = acc
 
             # TODO move into dragon boat manager lol
-            if self._record_chart_metrics:
+            if self._record_chart_metrics and self._is_training:
                 self._chart_metrics['test']['accuracy'].append(acc)
 
 
