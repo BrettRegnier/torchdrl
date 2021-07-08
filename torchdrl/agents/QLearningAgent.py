@@ -143,7 +143,7 @@ class QLearningAgent(Agent):
                     yield (episode_rewards[idx], steps[idx], round(episode_loss[idx], 2), infos[idx])
 
                     # RESET
-                    states[idx] = env.reset()
+                    states[idx] = self.Reset()
 
                     steps[idx] = 0
                     episode_rewards[idx] = 0
@@ -162,7 +162,7 @@ class QLearningAgent(Agent):
 
         # Init all envs 
         for idx, env in enumerate(self._envs):
-            states[idx] = env.reset()
+            states[idx] = self.Reset(env)
 
         test_idx = 1
         while test_idx < episodes + 1:
@@ -174,19 +174,28 @@ class QLearningAgent(Agent):
             for idx, (env, action) in enumerate(zip(envs, actions)):
                 next_state, reward, done, info = env.step(action)
 
+                # if info['lr'] == 0:
+                #     print("here")
                 episode_rewards[idx] += reward
                 steps[idx] += 1
+                
+                self.InfoHook(info)
 
                 if steps[idx] == self._max_steps_per_episode or done:
                     yield (steps[idx], episode_rewards[idx], info)
                     test_idx += 1
 
-                    states[idx] = env.reset()
+                    states[idx] = self.Reset(env)
 
                     steps[idx] = 0
                     episode_rewards[idx] = 0
                 else:
                     states[idx] = next_state
+
+    def InfoHook(self, info):
+        pass
+    def Reset(self, env):
+        return env.reset()
 
     @torch.no_grad()
     def GetActions(self, states, evaluate=False):
@@ -239,6 +248,8 @@ class QLearningAgent(Agent):
 
             loss = torch.mean(errors * weights_t)
 
+        # TODO if I wanted to include the errors for eval 
+        # the conditional evaluation could be here.
         self._optimizer.zero_grad()
         loss.backward()
         if self._clip_grad > -1:
@@ -314,7 +325,7 @@ class QLearningAgent(Agent):
         self._network.load_state_dict(state_dict['network'])
         self._target_network.load_state_dict(state_dict['target_network'])
         self._optimizer.load_state_dict(state_dict['optimizer'])
-        self._action_function.load_state_dict(state_dict['action_function'])
+        self._action_function.load_state_dict(state_dict['hyperparameters']['action_function'])
 
     def MemoryLearn(self, states, action, next_state, reward, done):
         self.StoreMemory(states, action, next_state, reward, done)

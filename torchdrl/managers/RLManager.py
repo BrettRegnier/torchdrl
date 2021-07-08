@@ -308,6 +308,7 @@ class RLManager:
                 win = info['win']
                 wins += 1 if win == 1 else 0
                 loses += 1 if win == 0 else 0
+            self.EpisodeInfoHook(info)
 
         avg_score = total_rewards / episodes
         avg_steps = total_steps / episodes
@@ -406,4 +407,7 @@ class RLManager:
         self._total_steps = state_dict['total_steps']
         self._total_avg_loss = state_dict['avg_loss']
         self._total_avg_test_score = state_dict['total_avg_test_score']
+
+    def EpisodeInfoHook(info):
+        pass
 
