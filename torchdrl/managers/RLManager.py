@@ -59,7 +59,20 @@ class RLManager:
         # could be impossible...
         # Thought specific keys could be watched for in the ep info
         self._metrics = metrics
-        self._chart_metrics = {}
+        self._chart_metrics = {
+            "train": {
+                "episode": [],
+                "score": [],
+                "loss": [],
+                "steps": [],
+            },
+            "test": {
+                "episode": [],
+                "score": [],
+                "steps": [],
+                "accuracy": [], # TODO move to dragon boat manager lol
+            }
+        }
 
         self._episode = 0
         self._total_steps = 0
@@ -118,21 +131,6 @@ class RLManager:
         test_msg = ""
 
         self._is_training = True
-
-        self._chart_metrics = {
-            "train": {
-                "episode": [],
-                "score": [],
-                "loss": [],
-                "steps": [],
-            },
-            "test": {
-                "episode": [],
-                "score": [],
-                "steps": [],
-                "accuracy": [], # TODO move to dragon boat manager lol
-            }
-        }
 
         for (episode_score, episode_steps, episode_loss, ep_info) in self._agent.PlayEpisode(evaluate=False):
             self._episode += 1
@@ -331,14 +329,15 @@ class RLManager:
             self._test_score_history[len(self._test_score_history) - 1] = acc
 
             # TODO move into dragon boat manager lol
-            if self._record_chart_metrics and self._is_training:
+            if self._record_chart_metrics:
                 self._chart_metrics['test']['accuracy'].append(acc)
 
 
         self._test_score_history = self._test_score_history[-self._reward_window:]
         total_avg_test_score = np.average(self._test_score_history)
 
-        if self._record_chart_metrics and self._is_training:
+        # TODO needs to be moved to the training
+        if self._record_chart_metrics:
             self._chart_metrics['test']['episode'].append(self._episode)
             self._chart_metrics['test']['score'].append(avg_score)
             self._chart_metrics['test']['steps'].append(avg_steps)
@@ -408,6 +407,9 @@ class RLManager:
         self._total_avg_loss = state_dict['avg_loss']
         self._total_avg_test_score = state_dict['total_avg_test_score']
 
-    def EpisodeInfoHook(info):
+        if self._record_chart_metrics:
+            self._chart_metrics = state_dict['chart_metrics']
+
+    def EpisodeInfoHook(self, info):
         pass
 

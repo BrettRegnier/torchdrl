@@ -140,10 +140,11 @@ class QLearningAgent(Agent):
                 if steps[idx] == self._max_steps_per_episode or done:
                     env.close()
                     infos[idx].update(info)
-                    yield (episode_rewards[idx], steps[idx], round(episode_loss[idx], 2), infos[idx])
+                    if len(self._memory) > self._warm_up:
+                        yield (episode_rewards[idx], steps[idx], round(episode_loss[idx], 2), infos[idx])
 
                     # RESET
-                    states[idx] = self.Reset()
+                    states[idx] = self.Reset(env)
 
                     steps[idx] = 0
                     episode_rewards[idx] = 0
@@ -182,7 +183,8 @@ class QLearningAgent(Agent):
                 self.InfoHook(info)
 
                 if steps[idx] == self._max_steps_per_episode or done:
-                    yield (steps[idx], episode_rewards[idx], info)
+                    if len(self._memory) >= self._warm_up:
+                        yield (steps[idx], episode_rewards[idx], info)
                     test_idx += 1
 
                     states[idx] = self.Reset(env)

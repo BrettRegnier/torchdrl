@@ -11,10 +11,10 @@ from torchdrl.neural_networks.CombineNetwork import CombineNetwork
 def CreateNetwork(network_kwargs, observation_space, action_space, device="cpu"):
     network = None
     input_shape = observation_space
-    if isinstance((action_space, gym.spaces.Discrete,)):
-        n_actions = action_space.n # HACK more complex
+    if isinstance(action_space, (gym.spaces.Discrete,)):
+        n_actions = action_space.n # TODO more complex
     else:
-        n_actions = action_space
+        n_actions = int(action_space)
     
     if isinstance(input_shape, (gym.spaces.Tuple, gym.spaces.Dict)):
         if 'group' in network_kwargs:
