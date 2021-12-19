@@ -63,8 +63,10 @@ config = {
             "sequential": {
                 "fullyconnected": {
                     "hidden_layers": [
+                        1024
                     ],
                     "activations": [
+                        "relu"
                     ],
                     "dropouts": [],
                     "out_features": 1024,
@@ -75,10 +77,8 @@ config = {
                 "dueling": {
                     "hidden_layers": [
                         1024,
-                        1024,
                     ],
                     "activations": [
-                        "relu",
                         "relu"
                     ],
                     "dropouts": [],
@@ -95,7 +95,7 @@ config = {
 
             },
             "step_window": 1,
-            "reward_window": 100,
+            "reward_window": 10,
             "reward_goal": 195,
             "train_checkpoint": True,
             "evaluate_checkpoint": True,
